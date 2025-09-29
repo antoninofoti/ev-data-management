@@ -1,0 +1,149 @@
+[
+  {
+    "$match": {
+      "state": {
+        "$nin": [
+          null,
+          ""
+        ]
+      },
+      "make": {
+        "$nin": [
+          null,
+          ""
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$state",
+      "total_ev_count": {
+        "$sum": 1
+      },
+      "distinct_makes": {
+        "$addToSet": "$make"
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "area_type": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$gte": [
+                  "$total_ev_count",
+                  5000
+                ]
+              },
+              "then": "Urban"
+            },
+            {
+              "case": {
+                "$gte": [
+                  "$total_ev_count",
+                  500
+                ]
+              },
+              "then": "Suburban"
+            }
+          ],
+          "default": "Rural"
+        }
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$area_type",
+      "areas_count": {
+        "$sum": 1
+      },
+      "total_evs": {
+        "$sum": "$total_ev_count"
+      },
+      "max_evs_per_area": {
+        "$max": "$total_ev_count"
+      },
+      "min_evs_per_area": {
+        "$min": "$total_ev_count"
+      },
+      "avg_evs_per_area": {
+        "$avg": "$total_ev_count"
+      }
+    }
+  },
+  {
+    "$facet": {
+      "results": [
+        {
+          "$project": {
+            "_id": 0,
+            "area_type": "$_id",
+            "areas_count": 1,
+            "total_evs": 1,
+            "avg_evs_per_area": {
+              "$round": [
+                "$avg_evs_per_area",
+                1
+              ]
+            },
+            "max_evs_per_area": 1,
+            "min_evs_per_area": 1
+          }
+        }
+      ],
+      "total": [
+        {
+          "$group": {
+            "_id": null,
+            "grand_total": {
+              "$sum": "$total_evs"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "$unwind": "$results"
+  },
+  {
+    "$project": {
+      "area_type": "$results.area_type",
+      "areas_count": "$results.areas_count",
+      "total_evs": "$results.total_evs",
+      "avg_evs_per_area": "$results.avg_evs_per_area",
+      "max_evs_per_area": "$results.max_evs_per_area",
+      "min_evs_per_area": "$results.min_evs_per_area",
+      "percentage_of_total": {
+        "$round": [
+          {
+            "$multiply": [
+              {
+                "$divide": [
+                  "$results.total_evs",
+                  {
+                    "$arrayElemAt": [
+                      "$total.grand_total",
+                      0
+                    ]
+                  }
+                ]
+              },
+              100
+            ]
+          },
+          1
+        ]
+      }
+    }
+  },
+  {
+    "$sort": {
+      "total_evs": -1
+    }
+  }
+]

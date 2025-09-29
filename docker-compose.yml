@@ -1,0 +1,85 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: ev_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ev_global_analysis
+      POSTGRES_USER: ev_admin
+      POSTGRES_PASSWORD: ev_password123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ev_admin -d ev_global_analysis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7.0
+    container_name: ev_mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ev_admin
+      MONGO_INITDB_ROOT_PASSWORD: ev_password123
+      MONGO_INITDB_DATABASE: ev_global_analysis
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:8.0
+    container_name: ev_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@evproject.com
+      PGADMIN_DEFAULT_PASSWORD: ev_admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  mongo_express:
+    image: mongo-express:1.0.0
+    container_name: ev_mongo_express
+    restart: always
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ev_admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ev_password123
+      ME_CONFIG_MONGODB_SERVER: ev_mongodb
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: ev_admin123
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: 'true'
+      ME_CONFIG_MONGODB_URL: mongodb://ev_admin:ev_password123@ev_mongodb:27017/
+    ports:
+      - "8081:8081"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local
+  mongodb_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  default:
+    driver: bridge

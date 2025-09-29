@@ -1,0 +1,1191 @@
+[
+  {
+    "$match": {
+      "region": {
+        "$in": [
+          "China",
+          "USA",
+          "Europe",
+          "Italy",
+          "World"
+        ]
+      },
+      "year": {
+        "$in": [
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024
+        ]
+      },
+      "mode": "Cars",
+      "parameter": {
+        "$in": [
+          "EV sales share",
+          "EV sales",
+          "EV stock",
+          "Public charging points"
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "region": "$region",
+        "year": "$year",
+        "parameter": "$parameter"
+      },
+      "metric_value": {
+        "$sum": "$value"
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$_id.region",
+      "metrics_data": {
+        "$push": {
+          "year": "$_id.year",
+          "parameter": "$_id.parameter",
+          "value": "$metric_value"
+        }
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "policy_approach": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "China"
+                ]
+              },
+              "then": "State-Led Comprehensive"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "USA"
+                ]
+              },
+              "then": "Market-Driven with Federal Support"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "Europe"
+                ]
+              },
+              "then": "Regulatory Framework with National Variations"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "Italy"
+                ]
+              },
+              "then": "EU Framework with National Incentives"
+            }
+          ],
+          "default": "Mixed Approach"
+        }
+      },
+      "key_policy_tools": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "China"
+                ]
+              },
+              "then": "NEV mandates, subsidies, battery supply chain"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "USA"
+                ]
+              },
+              "then": "Federal tax credits, state ZEV programs, infrastructure"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "Europe"
+                ]
+              },
+              "then": "CO2 standards, national incentives, Green Deal"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "Italy"
+                ]
+              },
+              "then": "Ecobonus, charging infrastructure, city restrictions"
+            }
+          ],
+          "default": "Various tools"
+        }
+      },
+      "policy_timeline": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "China"
+                ]
+              },
+              "then": "Early aggressive (2015+), sustained support"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "USA"
+                ]
+              },
+              "then": "Moderate start (2010+), recent acceleration"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "Europe"
+                ]
+              },
+              "then": "Building momentum (2020+), accelerating"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "Italy"
+                ]
+              },
+              "then": "Following EU trend, local adaptations"
+            }
+          ],
+          "default": "Variable timing"
+        }
+      },
+      "infrastructure_strategy": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "China"
+                ]
+              },
+              "then": "Massive public charging network"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "USA"
+                ]
+              },
+              "then": "Private sector led, federal support"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "Europe"
+                ]
+              },
+              "then": "Coordinated network expansion"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "Italy"
+                ]
+              },
+              "then": "National plan with EU funding"
+            }
+          ],
+          "default": "Mixed infrastructure"
+        }
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "ev_share_2024": {
+        "$let": {
+          "vars": {
+            "share_2024": {
+              "$filter": {
+                "input": "$metrics_data",
+                "cond": {
+                  "$and": [
+                    {
+                      "$eq": [
+                        "$$this.year",
+                        2024
+                      ]
+                    },
+                    {
+                      "$eq": [
+                        "$$this.parameter",
+                        "EV sales share"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "in": {
+            "$ifNull": [
+              {
+                "$arrayElemAt": [
+                  {
+                    "$map": {
+                      "input": "$$share_2024",
+                      "as": "item",
+                      "in": "$$item.value"
+                    }
+                  },
+                  0
+                ]
+              },
+              0
+            ]
+          }
+        }
+      },
+      "ev_share_2020": {
+        "$let": {
+          "vars": {
+            "share_2020": {
+              "$filter": {
+                "input": "$metrics_data",
+                "cond": {
+                  "$and": [
+                    {
+                      "$eq": [
+                        "$$this.year",
+                        2020
+                      ]
+                    },
+                    {
+                      "$eq": [
+                        "$$this.parameter",
+                        "EV sales share"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "in": {
+            "$ifNull": [
+              {
+                "$arrayElemAt": [
+                  {
+                    "$map": {
+                      "input": "$$share_2020",
+                      "as": "item",
+                      "in": "$$item.value"
+                    }
+                  },
+                  0
+                ]
+              },
+              0
+            ]
+          }
+        }
+      },
+      "ev_share_2018": {
+        "$let": {
+          "vars": {
+            "share_2018": {
+              "$filter": {
+                "input": "$metrics_data",
+                "cond": {
+                  "$and": [
+                    {
+                      "$eq": [
+                        "$$this.year",
+                        2018
+                      ]
+                    },
+                    {
+                      "$eq": [
+                        "$$this.parameter",
+                        "EV sales share"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "in": {
+            "$ifNull": [
+              {
+                "$arrayElemAt": [
+                  {
+                    "$map": {
+                      "input": "$$share_2018",
+                      "as": "item",
+                      "in": "$$item.value"
+                    }
+                  },
+                  0
+                ]
+              },
+              0
+            ]
+          }
+        }
+      },
+      "ev_sales_2024": {
+        "$let": {
+          "vars": {
+            "sales_2024": {
+              "$filter": {
+                "input": "$metrics_data",
+                "cond": {
+                  "$and": [
+                    {
+                      "$eq": [
+                        "$$this.year",
+                        2024
+                      ]
+                    },
+                    {
+                      "$eq": [
+                        "$$this.parameter",
+                        "EV sales"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "in": {
+            "$ifNull": [
+              {
+                "$arrayElemAt": [
+                  {
+                    "$map": {
+                      "input": "$$sales_2024",
+                      "as": "item",
+                      "in": "$$item.value"
+                    }
+                  },
+                  0
+                ]
+              },
+              0
+            ]
+          }
+        }
+      },
+      "ev_sales_2020": {
+        "$let": {
+          "vars": {
+            "sales_2020": {
+              "$filter": {
+                "input": "$metrics_data",
+                "cond": {
+                  "$and": [
+                    {
+                      "$eq": [
+                        "$$this.year",
+                        2020
+                      ]
+                    },
+                    {
+                      "$eq": [
+                        "$$this.parameter",
+                        "EV sales"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "in": {
+            "$ifNull": [
+              {
+                "$arrayElemAt": [
+                  {
+                    "$map": {
+                      "input": "$$sales_2020",
+                      "as": "item",
+                      "in": "$$item.value"
+                    }
+                  },
+                  0
+                ]
+              },
+              0
+            ]
+          }
+        }
+      },
+      "ev_stock_2024": {
+        "$let": {
+          "vars": {
+            "stock_2024": {
+              "$filter": {
+                "input": "$metrics_data",
+                "cond": {
+                  "$and": [
+                    {
+                      "$eq": [
+                        "$$this.year",
+                        2024
+                      ]
+                    },
+                    {
+                      "$eq": [
+                        "$$this.parameter",
+                        "EV stock"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "in": {
+            "$ifNull": [
+              {
+                "$arrayElemAt": [
+                  {
+                    "$map": {
+                      "input": "$$stock_2024",
+                      "as": "item",
+                      "in": "$$item.value"
+                    }
+                  },
+                  0
+                ]
+              },
+              0
+            ]
+          }
+        }
+      },
+      "ev_stock_2020": {
+        "$let": {
+          "vars": {
+            "stock_2020": {
+              "$filter": {
+                "input": "$metrics_data",
+                "cond": {
+                  "$and": [
+                    {
+                      "$eq": [
+                        "$$this.year",
+                        2020
+                      ]
+                    },
+                    {
+                      "$eq": [
+                        "$$this.parameter",
+                        "EV stock"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "in": {
+            "$ifNull": [
+              {
+                "$arrayElemAt": [
+                  {
+                    "$map": {
+                      "input": "$$stock_2020",
+                      "as": "item",
+                      "in": "$$item.value"
+                    }
+                  },
+                  0
+                ]
+              },
+              0
+            ]
+          }
+        }
+      },
+      "charging_points_2024": {
+        "$let": {
+          "vars": {
+            "charging_2024": {
+              "$filter": {
+                "input": "$metrics_data",
+                "cond": {
+                  "$and": [
+                    {
+                      "$eq": [
+                        "$$this.year",
+                        2024
+                      ]
+                    },
+                    {
+                      "$eq": [
+                        "$$this.parameter",
+                        "Public charging points"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "in": {
+            "$ifNull": [
+              {
+                "$arrayElemAt": [
+                  {
+                    "$map": {
+                      "input": "$$charging_2024",
+                      "as": "item",
+                      "in": "$$item.value"
+                    }
+                  },
+                  0
+                ]
+              },
+              0
+            ]
+          }
+        }
+      },
+      "charging_points_2020": {
+        "$let": {
+          "vars": {
+            "charging_2020": {
+              "$filter": {
+                "input": "$metrics_data",
+                "cond": {
+                  "$and": [
+                    {
+                      "$eq": [
+                        "$$this.year",
+                        2020
+                      ]
+                    },
+                    {
+                      "$eq": [
+                        "$$this.parameter",
+                        "Public charging points"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "in": {
+            "$ifNull": [
+              {
+                "$arrayElemAt": [
+                  {
+                    "$map": {
+                      "input": "$$charging_2020",
+                      "as": "item",
+                      "in": "$$item.value"
+                    }
+                  },
+                  0
+                ]
+              },
+              0
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "share_growth_2020_2024_percent": {
+        "$cond": [
+          {
+            "$gt": [
+              "$ev_share_2020",
+              0
+            ]
+          },
+          {
+            "$round": [
+              {
+                "$multiply": [
+                  {
+                    "$divide": [
+                      {
+                        "$subtract": [
+                          "$ev_share_2024",
+                          {
+                            "$max": [
+                              "$ev_share_2020",
+                              1
+                            ]
+                          }
+                        ]
+                      },
+                      "$ev_share_2020"
+                    ]
+                  },
+                  100
+                ]
+              },
+              1
+            ]
+          },
+          0
+        ]
+      },
+      "share_growth_2018_2024_percent": {
+        "$cond": [
+          {
+            "$gt": [
+              "$ev_share_2018",
+              0
+            ]
+          },
+          {
+            "$round": [
+              {
+                "$multiply": [
+                  {
+                    "$divide": [
+                      {
+                        "$subtract": [
+                          "$ev_share_2024",
+                          {
+                            "$max": [
+                              "$ev_share_2018",
+                              1
+                            ]
+                          }
+                        ]
+                      },
+                      "$ev_share_2018"
+                    ]
+                  },
+                  100
+                ]
+              },
+              1
+            ]
+          },
+          0
+        ]
+      },
+      "sales_growth_2020_2024_percent": {
+        "$cond": [
+          {
+            "$gt": [
+              "$ev_sales_2020",
+              0
+            ]
+          },
+          {
+            "$round": [
+              {
+                "$multiply": [
+                  {
+                    "$divide": [
+                      {
+                        "$subtract": [
+                          "$ev_sales_2024",
+                          {
+                            "$max": [
+                              "$ev_sales_2020",
+                              1
+                            ]
+                          }
+                        ]
+                      },
+                      "$ev_sales_2020"
+                    ]
+                  },
+                  100
+                ]
+              },
+              1
+            ]
+          },
+          0
+        ]
+      },
+      "stock_growth_2020_2024_percent": {
+        "$cond": [
+          {
+            "$gt": [
+              "$ev_stock_2020",
+              0
+            ]
+          },
+          {
+            "$round": [
+              {
+                "$multiply": [
+                  {
+                    "$divide": [
+                      {
+                        "$subtract": [
+                          "$ev_stock_2024",
+                          {
+                            "$max": [
+                              "$ev_stock_2020",
+                              1
+                            ]
+                          }
+                        ]
+                      },
+                      "$ev_stock_2020"
+                    ]
+                  },
+                  100
+                ]
+              },
+              1
+            ]
+          },
+          0
+        ]
+      },
+      "charging_growth_2020_2024_percent": {
+        "$cond": [
+          {
+            "$gt": [
+              "$charging_points_2020",
+              0
+            ]
+          },
+          {
+            "$round": [
+              {
+                "$multiply": [
+                  {
+                    "$divide": [
+                      {
+                        "$subtract": [
+                          "$charging_points_2024",
+                          {
+                            "$max": [
+                              "$charging_points_2020",
+                              1
+                            ]
+                          }
+                        ]
+                      },
+                      "$charging_points_2020"
+                    ]
+                  },
+                  100
+                ]
+              },
+              1
+            ]
+          },
+          0
+        ]
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "policy_effectiveness_score": {
+        "$round": [
+          {
+            "$add": [
+              {
+                "$multiply": [
+                  "$ev_share_2024",
+                  0.4
+                ]
+              },
+              {
+                "$multiply": [
+                  {
+                    "$cond": [
+                      {
+                        "$gt": [
+                          "$ev_share_2020",
+                          0
+                        ]
+                      },
+                      {
+                        "$multiply": [
+                          {
+                            "$divide": [
+                              {
+                                "$subtract": [
+                                  "$ev_share_2024",
+                                  {
+                                    "$max": [
+                                      "$ev_share_2020",
+                                      1
+                                    ]
+                                  }
+                                ]
+                              },
+                              "$ev_share_2020"
+                            ]
+                          },
+                          10
+                        ]
+                      },
+                      0
+                    ]
+                  },
+                  0.3
+                ]
+              },
+              {
+                "$multiply": [
+                  {
+                    "$switch": {
+                      "branches": [
+                        {
+                          "case": {
+                            "$gt": [
+                              "$ev_sales_2024",
+                              1000000
+                            ]
+                          },
+                          "then": 10
+                        },
+                        {
+                          "case": {
+                            "$gt": [
+                              "$ev_sales_2024",
+                              500000
+                            ]
+                          },
+                          "then": 7
+                        },
+                        {
+                          "case": {
+                            "$gt": [
+                              "$ev_sales_2024",
+                              100000
+                            ]
+                          },
+                          "then": 5
+                        }
+                      ],
+                      "default": 2
+                    }
+                  },
+                  0.3
+                ]
+              }
+            ]
+          },
+          1
+        ]
+      },
+      "italy_performance_comparison": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "Italy"
+                ]
+              },
+              "then": "Reference Market"
+            },
+            {
+              "case": {
+                "$gt": [
+                  "$ev_share_2024",
+                  4.2
+                ]
+              },
+              "then": "Outperforming Italy"
+            }
+          ],
+          "default": "Underperforming vs Italy"
+        }
+      },
+      "policy_maturity_stage": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$and": [
+                  {
+                    "$gte": [
+                      "$ev_share_2024",
+                      20
+                    ]
+                  },
+                  {
+                    "$gte": [
+                      "$sales_growth_2020_2024_percent",
+                      100
+                    ]
+                  }
+                ]
+              },
+              "then": "Mature High-Growth"
+            },
+            {
+              "case": {
+                "$and": [
+                  {
+                    "$gte": [
+                      "$ev_share_2024",
+                      10
+                    ]
+                  },
+                  {
+                    "$gte": [
+                      "$sales_growth_2020_2024_percent",
+                      200
+                    ]
+                  }
+                ]
+              },
+              "then": "Rapid Scaling"
+            },
+            {
+              "case": {
+                "$and": [
+                  {
+                    "$gte": [
+                      "$ev_share_2024",
+                      5
+                    ]
+                  },
+                  {
+                    "$gte": [
+                      "$sales_growth_2020_2024_percent",
+                      150
+                    ]
+                  }
+                ]
+              },
+              "then": "Strong Development"
+            },
+            {
+              "case": {
+                "$gte": [
+                  "$ev_share_2024",
+                  2
+                ]
+              },
+              "then": "Early Growth"
+            }
+          ],
+          "default": "Initial Stage"
+        }
+      },
+      "key_success_factors": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "China"
+                ]
+              },
+              "then": "Scale mandates, supply chain control, infrastructure"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "USA"
+                ]
+              },
+              "then": "Innovation ecosystem, federal incentives, state leadership"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "Europe"
+                ]
+              },
+              "then": "Regulatory consistency, manufacturer pressure, climate targets"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "Italy"
+                ]
+              },
+              "then": "EU alignment, national incentives, urban policies"
+            }
+          ],
+          "default": "Mixed success factors"
+        }
+      },
+      "lessons_for_italy": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "China"
+                ]
+              },
+              "then": "Long-term industrial strategy, supply chain development"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "USA"
+                ]
+              },
+              "then": "Innovation support, state-level experimentation"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id",
+                  "Europe"
+                ]
+              },
+              "then": "Regulatory certainty, coordinated approach"
+            }
+          ],
+          "default": "Market-specific adaptations"
+        }
+      },
+      "sustainability_outlook": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$and": [
+                  {
+                    "$gte": [
+                      "$share_growth_2020_2024_percent",
+                      100
+                    ]
+                  },
+                  {
+                    "$gte": [
+                      "$ev_share_2024",
+                      10
+                    ]
+                  }
+                ]
+              },
+              "then": "Highly Sustainable"
+            },
+            {
+              "case": {
+                "$and": [
+                  {
+                    "$gte": [
+                      "$share_growth_2020_2024_percent",
+                      50
+                    ]
+                  },
+                  {
+                    "$gte": [
+                      "$ev_share_2024",
+                      5
+                    ]
+                  }
+                ]
+              },
+              "then": "Sustainable Growth"
+            },
+            {
+              "case": {
+                "$gte": [
+                  "$share_growth_2020_2024_percent",
+                  25
+                ]
+              },
+              "then": "Moderate Sustainability"
+            }
+          ],
+          "default": "Sustainability Concerns"
+        }
+      }
+    }
+  },
+  {
+    "$sort": {
+      "_id": 1
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "region": "$_id",
+      "policy_approach": 1,
+      "key_policy_tools": 1,
+      "policy_timeline": 1,
+      "infrastructure_strategy": 1,
+      "ev_share_2024_percent": {
+        "$round": [
+          "$ev_share_2024",
+          0
+        ]
+      },
+      "ev_sales_2024_units": {
+        "$round": [
+          "$ev_sales_2024",
+          0
+        ]
+      },
+      "ev_stock_2024_units": {
+        "$round": [
+          "$ev_stock_2024",
+          0
+        ]
+      },
+      "share_growth_2020_2024_percent": 1,
+      "sales_growth_2020_2024_percent": 1,
+      "stock_growth_2020_2024_percent": 1,
+      "charging_growth_2020_2024_percent": 1,
+      "policy_effectiveness_score": 1,
+      "italy_performance_comparison": 1,
+      "policy_maturity_stage": 1,
+      "key_success_factors": 1,
+      "lessons_for_italy": 1,
+      "sustainability_outlook": 1
+    }
+  }
+]

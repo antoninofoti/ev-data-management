@@ -1,0 +1,76 @@
+[
+  {
+    "$match": {
+      "country_code": { "$nin": [null, ""] },
+      "city": { "$nin": [null, ""] },
+      "power_kw": { "$type": "number", "$gt": 0 }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "region": "$country_code",
+        "region": "$city"
+      },
+      "charging_stations": { "$sum": 1 },
+      "charging_ports": { "$sum": "$ports" },
+      "fast_stations": {
+        "$sum": { "$cond": [{ "$gte": ["$power_kw", 50] }, 1, 0] }
+      },
+      "avg_power": { "$avg": "$power_kw" }
+    }
+  },
+  {
+    "$addFields": {
+      "ev_population": 100,
+      "evs_per_station": {
+        "$cond": [
+          { "$eq": ["$charging_stations", 0] },
+          999999,
+          { "$round": [{ "$divide": [100, "$charging_stations"] }, 1] }
+        ]
+      },
+      "gap_severity": {
+        "$switch": {
+          "branches": [
+            { "case": { "$eq": ["$charging_stations", 0] }, "then": "Critical Gap" },
+            { "case": { "$gt": [{ "$divide": [100, "$charging_stations"] }, 50] }, "then": "High Gap" },
+            { "case": { "$gt": [{ "$divide": [100, "$charging_stations"] }, 20] }, "then": "Medium Gap" },
+            { "case": { "$gt": [{ "$divide": [100, "$charging_stations"] }, 10] }, "then": "Low Gap" }
+          ],
+          "default": "Adequate"
+        }
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "region": "$_id.region",
+      "region": "$_id.region_name",
+      "ev_population": 1,
+      "charging_stations": 1,
+      "charging_ports": 1,
+      "fast_stations": 1,
+      "evs_per_station": 1,
+      "gap_severity": 1
+    }
+  },
+  {
+    "$match": {
+      "$or": [
+        { "ev_population": { "$gt": 0 } },
+        { "charging_stations": { "$gt": 0 } }
+      ]
+    }
+  },
+  {
+    "$sort": {
+      "evs_per_station": -1,
+      "ev_population": -1
+    }
+  },
+  {
+    "$limit": 50
+  }
+]

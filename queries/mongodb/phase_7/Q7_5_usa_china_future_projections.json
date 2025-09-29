@@ -1,0 +1,128 @@
+[
+  {
+    "$match": {
+      "region": {
+        "$in": [
+          "USA",
+          "China"
+        ]
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "year_int": {
+        "$toInt": {
+          "$cond": [
+            {
+              "$eq": [
+                "$year",
+                ""
+              ]
+            },
+            null,
+            "$year"
+          ]
+        }
+      },
+      "value_num": {
+        "$toDouble": {
+          "$cond": [
+            {
+              "$eq": [
+                "$value",
+                ""
+              ]
+            },
+            null,
+            "$value"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "year_int": 2030,
+      "$or": [
+        {
+          "parameter": {
+            "$in": [
+              "EV sales",
+              "EV stock"
+            ]
+          },
+          "powertrain": {
+            "$in": [
+              "BEV",
+              "PHEV",
+              "FCEV"
+            ]
+          }
+        },
+        {
+          "parameter": "EV sales share",
+          "powertrain": "EV"
+        }
+      ]
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "region": "$region",
+        "parameter": "$parameter"
+      },
+      "total_value": {
+        "$sum": "$value_num"
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "region": "$_id.region_name",
+      "parameter": "$_id.parameter",
+      "projected_2030_millions": {
+        "$toString": {
+          "$round": [
+            {
+              "$divide": [
+                "$total_value",
+                1000000
+              ]
+            },
+            1
+          ]
+        }
+      },
+      "unit": {
+        "$cond": [
+          {
+            "$regexMatch": {
+              "input": "$_id.parameter",
+              "regex": "share",
+              "options": "i"
+            }
+          },
+          "%",
+          "M vehicles"
+        ]
+      },
+      "sort_param": "$_id.parameter",
+      "sort_region": "$_id.region_name"
+    }
+  },
+  {
+    "$sort": {
+      "sort_param": 1,
+      "sort_region": 1
+    }
+  },
+  {
+    "$project": {
+      "sort_param": 0,
+      "sort_region": 0
+    }
+  }
+]

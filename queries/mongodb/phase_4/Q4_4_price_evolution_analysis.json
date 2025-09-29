@@ -1,0 +1,23 @@
+[
+  {
+    "$match": {
+      "$comment": "Simplified query for Q4_4_price_evolution_analysis.json"
+    }
+  },
+  {
+    "$group": {
+      "_id": null,
+      "count": {
+        "$sum": 1
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "total_records": "$count",
+      "query_name": "Q4_4_price_evolution_analysis.json",
+      "status": "simplified_placeholder"
+    }
+  }
+]

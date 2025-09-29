@@ -1,0 +1,402 @@
+[
+  {
+    "$match": {
+      "make": {
+        "$nin": [
+          null,
+          ""
+        ]
+      },
+      "model": {
+        "$nin": [
+          null,
+          ""
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$make",
+      "total_models": {
+        "$addToSet": "$model"
+      },
+      "total_sales": {
+        "$sum": 1
+      },
+      "market_presence": {
+        "$addToSet": "$state"
+      },
+      "prices": {
+        "$push": {
+          "$cond": [
+            {
+              "$and": [
+                {
+                  "$ne": [
+                    "$base_msrp",
+                    null
+                  ]
+                },
+                {
+                  "$ne": [
+                    "$base_msrp",
+                    ""
+                  ]
+                },
+                {
+                  "$gt": [
+                    {
+                      "$toDouble": {
+                        "$ifNull": [
+                          "$base_msrp",
+                          "0"
+                        ]
+                      }
+                    },
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "$toDouble": "$base_msrp"
+            },
+            null
+          ]
+        }
+      },
+      "ranges": {
+        "$push": {
+          "$cond": [
+            {
+              "$and": [
+                {
+                  "$ne": [
+                    "$electric_range",
+                    null
+                  ]
+                },
+                {
+                  "$ne": [
+                    "$electric_range",
+                    ""
+                  ]
+                },
+                {
+                  "$gt": [
+                    {
+                      "$toDouble": {
+                        "$ifNull": [
+                          "$electric_range",
+                          "0"
+                        ]
+                      }
+                    },
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "$toDouble": "$electric_range"
+            },
+            null
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "total_sales": {
+        "$gte": 100
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "total_models_count": {
+        "$size": "$total_models"
+      },
+      "market_presence_count": {
+        "$size": "$market_presence"
+      },
+      "valid_prices": {
+        "$filter": {
+          "input": "$prices",
+          "cond": {
+            "$ne": [
+              "$$this",
+              null
+            ]
+          }
+        }
+      },
+      "valid_ranges": {
+        "$filter": {
+          "input": "$ranges",
+          "cond": {
+            "$ne": [
+              "$$this",
+              null
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "avg_price": {
+        "$cond": [
+          {
+            "$gt": [
+              {
+                "$size": "$valid_prices"
+              },
+              0
+            ]
+          },
+          {
+            "$avg": "$valid_prices"
+          },
+          null
+        ]
+      },
+      "avg_range": {
+        "$cond": [
+          {
+            "$gt": [
+              {
+                "$size": "$valid_ranges"
+              },
+              0
+            ]
+          },
+          {
+            "$avg": "$valid_ranges"
+          },
+          null
+        ]
+      },
+      "min_price": {
+        "$cond": [
+          {
+            "$gt": [
+              {
+                "$size": "$valid_prices"
+              },
+              0
+            ]
+          },
+          {
+            "$min": "$valid_prices"
+          },
+          null
+        ]
+      },
+      "max_price": {
+        "$cond": [
+          {
+            "$gt": [
+              {
+                "$size": "$valid_prices"
+              },
+              0
+            ]
+          },
+          {
+            "$max": "$valid_prices"
+          },
+          null
+        ]
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "market_positioning": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$lt": [
+                  "$avg_price",
+                  35000
+                ]
+              },
+              "then": "Mass Market"
+            },
+            {
+              "case": {
+                "$lt": [
+                  "$avg_price",
+                  60000
+                ]
+              },
+              "then": "Premium"
+            },
+            {
+              "case": {
+                "$ne": [
+                  "$avg_price",
+                  null
+                ]
+              },
+              "then": "Luxury"
+            }
+          ],
+          "default": "Unknown"
+        }
+      },
+      "range_strategy": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$lt": [
+                  "$avg_range",
+                  250
+                ]
+              },
+              "then": "Short Range Focus"
+            },
+            {
+              "case": {
+                "$lt": [
+                  "$avg_range",
+                  350
+                ]
+              },
+              "then": "Balanced Range"
+            },
+            {
+              "case": {
+                "$ne": [
+                  "$avg_range",
+                  null
+                ]
+              },
+              "then": "Long Range Focus"
+            }
+          ],
+          "default": "Unknown"
+        }
+      },
+      "price_spread": {
+        "$round": [
+          {
+            "$subtract": [
+              {
+                "$ifNull": [
+                  "$max_price",
+                  0
+                ]
+              },
+              {
+                "$ifNull": [
+                  "$min_price",
+                  0
+                ]
+              }
+            ]
+          },
+          0
+        ]
+      },
+      "value_score": {
+        "$round": [
+          {
+            "$multiply": [
+              "$total_sales",
+              {
+                "$divide": [
+                  {
+                    "$ifNull": [
+                      "$avg_range",
+                      250
+                    ]
+                  },
+                  {
+                    "$ifNull": [
+                      "$avg_price",
+                      50000
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          0
+        ]
+      }
+    }
+  },
+  {
+    "$setWindowFields": {
+      "sortBy": {
+        "total_sales": -1
+      },
+      "output": {
+        "sales_rank": {
+          "$rank": {}
+        }
+      }
+    }
+  },
+  {
+    "$setWindowFields": {
+      "sortBy": {
+        "value_score": -1
+      },
+      "output": {
+        "value_rank": {
+          "$rank": {}
+        }
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "manufacturer": "$_id",
+      "total_models": "$total_models_count",
+      "total_sales": 1,
+      "market_presence": "$market_presence_count",
+      "avg_price": {
+        "$round": [
+          {
+            "$ifNull": [
+              "$avg_price",
+              0
+            ]
+          },
+          0
+        ]
+      },
+      "avg_range": {
+        "$round": [
+          {
+            "$ifNull": [
+              "$avg_range",
+              0
+            ]
+          },
+          0
+        ]
+      },
+      "market_positioning": 1,
+      "range_strategy": 1,
+      "price_spread": 1,
+      "value_score": 1,
+      "sales_rank": 1,
+      "value_rank": 1
+    }
+  },
+  {
+    "$sort": {
+      "total_sales": -1
+    }
+  }
+]

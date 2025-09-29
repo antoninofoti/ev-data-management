@@ -1,0 +1,385 @@
+[
+  {
+    "$match": {
+      "region": {
+        "$in": [
+          "Italy",
+          "Europe"
+        ]
+      },
+      "parameter": {
+        "$in": [
+          "EV sales",
+          "EV stock",
+          "EV sales share"
+        ]
+      },
+      "mode": "Cars"
+    }
+  },
+  {
+    "$addFields": {
+      "year_int": {
+        "$toInt": {
+          "$cond": [
+            {
+              "$eq": [
+                "$year",
+                ""
+              ]
+            },
+            null,
+            "$year"
+          ]
+        }
+      },
+      "value_num": {
+        "$toDouble": {
+          "$cond": [
+            {
+              "$eq": [
+                "$value",
+                ""
+              ]
+            },
+            null,
+            "$value"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "year_int": {
+        "$in": [
+          2020,
+          2021,
+          2022,
+          2023
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "state": "$region",
+        "year": "$year_int",
+        "parameter": "$parameter",
+        "powertrain": "$powertrain"
+      },
+      "total_value": {
+        "$sum": "$value_num"
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "state": "$_id.state",
+        "year": "$_id.year",
+        "parameter": "$_id.parameter"
+      },
+      "ev_total": {
+        "$sum": "$total_value"
+      },
+      "bev_value": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$_id.powertrain",
+                "BEV"
+              ]
+            },
+            "$total_value",
+            0
+          ]
+        }
+      },
+      "phev_value": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$_id.powertrain",
+                "PHEV"
+              ]
+            },
+            "$total_value",
+            0
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "state": "$_id.state",
+        "year": "$_id.year"
+      },
+      "params": {
+        "$push": "$$ROOT"
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "state": "$_id.state",
+      "year": {
+        "$toString": "$_id.year"
+      },
+      "ev_sales_units": {
+        "$round": [
+          {
+            "$let": {
+              "vars": {
+                "sales": {
+                  "$filter": {
+                    "input": "$params",
+                    "cond": {
+                      "$eq": [
+                        "$$this._id.parameter",
+                        "EV sales"
+                      ]
+                    }
+                  }
+                }
+              },
+              "in": {
+                "$ifNull": [
+                  {
+                    "$arrayElemAt": [
+                      "$$sales.ev_total",
+                      0
+                    ]
+                  },
+                  0
+                ]
+              }
+            }
+          },
+          0
+        ]
+      },
+      "bev_sales_units": {
+        "$round": [
+          {
+            "$let": {
+              "vars": {
+                "sales": {
+                  "$filter": {
+                    "input": "$params",
+                    "cond": {
+                      "$eq": [
+                        "$$this._id.parameter",
+                        "EV sales"
+                      ]
+                    }
+                  }
+                }
+              },
+              "in": {
+                "$ifNull": [
+                  {
+                    "$arrayElemAt": [
+                      "$$sales.bev_value",
+                      0
+                    ]
+                  },
+                  0
+                ]
+              }
+            }
+          },
+          0
+        ]
+      },
+      "phev_sales_units": {
+        "$round": [
+          {
+            "$let": {
+              "vars": {
+                "sales": {
+                  "$filter": {
+                    "input": "$params",
+                    "cond": {
+                      "$eq": [
+                        "$$this._id.parameter",
+                        "EV sales"
+                      ]
+                    }
+                  }
+                }
+              },
+              "in": {
+                "$ifNull": [
+                  {
+                    "$arrayElemAt": [
+                      "$$sales.phev_value",
+                      0
+                    ]
+                  },
+                  0
+                ]
+              }
+            }
+          },
+          0
+        ]
+      },
+      "ev_market_share_percent": {
+        "$round": [
+          {
+            "$let": {
+              "vars": {
+                "share": {
+                  "$filter": {
+                    "input": "$params",
+                    "cond": {
+                      "$eq": [
+                        "$$this._id.parameter",
+                        "EV sales share"
+                      ]
+                    }
+                  }
+                }
+              },
+              "in": {
+                "$ifNull": [
+                  {
+                    "$arrayElemAt": [
+                      "$$share.ev_total",
+                      0
+                    ]
+                  },
+                  0
+                ]
+              }
+            }
+          },
+          2
+        ]
+      },
+      "ev_stock_units": {
+        "$round": [
+          {
+            "$let": {
+              "vars": {
+                "stock": {
+                  "$filter": {
+                    "input": "$params",
+                    "cond": {
+                      "$eq": [
+                        "$$this._id.parameter",
+                        "EV stock"
+                      ]
+                    }
+                  }
+                }
+              },
+              "in": {
+                "$ifNull": [
+                  {
+                    "$arrayElemAt": [
+                      "$$stock.ev_total",
+                      0
+                    ]
+                  },
+                  0
+                ]
+              }
+            }
+          },
+          0
+        ]
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "bev_share_percent": {
+        "$round": [
+          {
+            "$cond": [
+              {
+                "$gt": [
+                  "$ev_sales_units",
+                  0
+                ]
+              },
+              {
+                "$multiply": [
+                  {
+                    "$divide": [
+                      "$bev_sales_units",
+                      "$ev_sales_units"
+                    ]
+                  },
+                  100
+                ]
+              },
+              0
+            ]
+          },
+          1
+        ]
+      },
+      "period_context": {
+        "$cond": [
+          {
+            "$eq": [
+              "$state",
+              "Italy"
+            ]
+          },
+          "Italian Market",
+          "European Benchmark"
+        ]
+      },
+      "market_stage": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$gte": [
+                  "$ev_market_share_percent",
+                  15
+                ]
+              },
+              "then": "Mass Market"
+            },
+            {
+              "case": {
+                "$gte": [
+                  "$ev_market_share_percent",
+                  5
+                ]
+              },
+              "then": "Growth Stage"
+            },
+            {
+              "case": {
+                "$gte": [
+                  "$ev_market_share_percent",
+                  1
+                ]
+              },
+              "then": "Early Adoption"
+            }
+          ],
+          "default": "Nascent"
+        }
+      }
+    }
+  },
+  {
+    "$sort": {
+      "state": 1,
+      "year": 1
+    }
+  }
+]

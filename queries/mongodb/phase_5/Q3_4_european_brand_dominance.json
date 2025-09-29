@@ -1,0 +1,183 @@
+[
+  {
+    "$match": {
+      "base_msrp": { "$nin": [null, ""] },
+      "electric_range": { "$nin": [null, ""] }
+    }
+  },
+  {
+    "$addFields": {
+      "price_numeric": {
+        "$toDouble": {
+          "$cond": [{ "$eq": ["$base_msrp", ""] }, null, "$base_msrp"]
+        }
+      },
+      "range_numeric": {
+        "$toDouble": {
+          "$cond": [{ "$eq": ["$electric_range", ""] }, null, "$electric_range"]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "price_numeric": { "$gt": 0 },
+      "range_numeric": { "$gt": 0 }
+    }
+  },
+  {
+    "$group": {
+      "_id": { "make": "$make", "state": "$state" },
+      "registrations": { "$sum": 1 },
+      "avg_price": { "$avg": "$price_numeric" },
+      "avg_range": { "$avg": "$range_numeric" }
+    }
+  },
+  {
+    "$match": { "registrations": { "$gte": 5 } }
+  },
+  {
+    "$addFields": {
+      "brand_origin": {
+        "$switch": {
+          "branches": [
+            {
+              "case": { "$in": [{ "$toUpper": "$_id.make" }, ["BMW", "MERCEDES-BENZ", "VOLKSWAGEN", "AUDI", "PORSCHE", "SMART", "OPEL"]] },
+              "then": "German"
+            },
+            {
+              "case": { "$in": [{ "$toUpper": "$_id.make" }, ["RENAULT", "PEUGEOT", "CITROËN", "CITROEN", "DS", "DS AUTOMOBILES", "ALPINE"]] },
+              "then": "French"
+            },
+            {
+              "case": { "$in": [{ "$toUpper": "$_id.make" }, ["FIAT", "ALFA ROMEO", "MASERATI", "LANCIA", "FERRARI"]] },
+              "then": "Italian"
+            },
+            {
+              "case": { "$in": [{ "$toUpper": "$_id.make" }, ["VOLVO", "POLESTAR"]] },
+              "then": "Swedish"
+            },
+            {
+              "case": { "$in": [{ "$toUpper": "$_id.make" }, ["JAGUAR", "LAND ROVER", "MINI", "ASTON MARTIN", "BENTLEY", "ROLLS-ROYCE"]] },
+              "then": "British"
+            }
+          ],
+          "default": null
+        }
+      },
+      "price_tier": {
+        "$switch": {
+          "branches": [
+            { "case": { "$lt": ["$avg_price", 30000] }, "then": "Entry Level (<€30k)" },
+            { "case": { "$lt": ["$avg_price", 50000] }, "then": "Mid-Market (€30k-€50k)" },
+            { "case": { "$lt": ["$avg_price", 80000] }, "then": "Premium (€50k-€80k)" }
+          ],
+          "default": "Luxury (€80k+)"
+        }
+      }
+    }
+  },
+  {
+    "$match": { "brand_origin": { "$ne": null } }
+  },
+  {
+    "$group": {
+      "_id": "$brand_origin",
+      "unique_brands": { "$addToSet": "$_id.make" },
+      "markets_present": { "$addToSet": "$_id.state" },
+      "total_registrations": { "$sum": "$registrations" },
+      "overall_avg_price": { "$avg": "$avg_price" },
+      "overall_avg_range": { "$avg": "$avg_range" },
+      "price_tiers": { "$addToSet": "$price_tier" },
+      "tier_data": {
+        "$push": {
+          "price_tier": "$price_tier",
+          "registrations": "$registrations"
+        }
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "unique_brands_count": { "$size": "$unique_brands" },
+      "markets_present_count": { "$size": "$markets_present" },
+      "price_tiers_covered": { "$size": "$price_tiers" }
+    }
+  },
+  {
+    "$unwind": "$tier_data"
+  },
+  {
+    "$group": {
+      "_id": { "brand_origin": "$_id", "price_tier": "$tier_data.price_tier" },
+      "unique_brands_count": { "$first": "$unique_brands_count" },
+      "markets_present_count": { "$first": "$markets_present_count" },
+      "total_registrations": { "$first": "$total_registrations" },
+      "overall_avg_price": { "$first": "$overall_avg_price" },
+      "overall_avg_range": { "$first": "$overall_avg_range" },
+      "price_tiers_covered": { "$first": "$price_tiers_covered" },
+      "tier_registrations": { "$sum": "$tier_data.registrations" }
+    }
+  },
+  {
+    "$sort": { "_id.brand_origin": 1, "tier_registrations": -1 }
+  },
+  {
+    "$group": {
+      "_id": "$_id.brand_origin",
+      "unique_brands_count": { "$first": "$unique_brands_count" },
+      "markets_present_count": { "$first": "$markets_present_count" },
+      "total_registrations": { "$first": "$total_registrations" },
+      "overall_avg_price": { "$first": "$overall_avg_price" },
+      "overall_avg_range": { "$first": "$overall_avg_range" },
+      "price_tiers_covered": { "$first": "$price_tiers_covered" },
+      "dominant_price_tier": { "$first": "$_id.price_tier" },
+      "dominant_tier_sales": { "$first": "$tier_registrations" }
+    }
+  },
+  {
+    "$group": {
+      "_id": null,
+      "total_european_brand_sales": { "$sum": "$total_registrations" },
+      "brands": { "$push": "$$ROOT" }
+    }
+  },
+  {
+    "$unwind": "$brands"
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "brand_origin": "$brands._id",
+      "unique_brands": "$brands.unique_brands_count",
+      "markets_present": "$brands.markets_present_count",
+      "total_registrations": "$brands.total_registrations",
+      "market_share_percent": {
+        "$round": [
+          { "$multiply": [{ "$divide": ["$brands.total_registrations", "$total_european_brand_sales"] }, 100] },
+          2
+        ]
+      },
+      "avg_price_eur": { "$round": ["$brands.overall_avg_price", 0] },
+      "avg_range_km": { "$round": ["$brands.overall_avg_range", 0] },
+      "price_tiers_covered": "$brands.price_tiers_covered",
+      "brand_positioning": {
+        "$switch": {
+          "branches": [
+            { "case": { "$eq": ["$brands._id", "German"] }, "then": "Premium & Luxury Focus" },
+            { "case": { "$eq": ["$brands._id", "French"] }, "then": "Mass Market & Affordable" },
+            { "case": { "$eq": ["$brands._id", "Italian"] }, "then": "Style & Performance" },
+            { "case": { "$eq": ["$brands._id", "Swedish"] }, "then": "Safety & Premium" },
+            { "case": { "$eq": ["$brands._id", "British"] }, "then": "Luxury & Heritage" }
+          ],
+          "default": "European Brand"
+        }
+      },
+      "dominant_price_tier": "$brands.dominant_price_tier",
+      "dominant_tier_sales": "$brands.dominant_tier_sales"
+    }
+  },
+  {
+    "$sort": { "total_registrations": -1 }
+  }
+]

@@ -1,0 +1,467 @@
+[
+  {
+    "$match": {
+      "region": {
+        "$in": [
+          "Italy",
+          "Germany",
+          "France",
+          "Spain",
+          "Netherlands",
+          "Norway",
+          "Europe"
+        ]
+      },
+      "parameter": {
+        "$in": [
+          "EV sales",
+          "EV stock",
+          "EV sales share"
+        ]
+      },
+      "mode": "Cars"
+    }
+  },
+  {
+    "$addFields": {
+      "year_int": {
+        "$toInt": {
+          "$cond": [
+            {
+              "$eq": [
+                "$year",
+                ""
+              ]
+            },
+            null,
+            "$year"
+          ]
+        }
+      },
+      "value_num": {
+        "$toDouble": {
+          "$cond": [
+            {
+              "$eq": [
+                "$value",
+                ""
+              ]
+            },
+            null,
+            "$value"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "year_int": {
+        "$gte": 2020,
+        "$lte": 2023
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "state": "$region",
+        "year": "$year_int",
+        "parameter": "$parameter",
+        "powertrain": "$powertrain"
+      },
+      "total_value": {
+        "$sum": "$value_num"
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "state": "$_id.state",
+        "year": "$_id.year"
+      },
+      "params": {
+        "$push": {
+          "parameter": "$_id.parameter",
+          "powertrain": "$_id.powertrain",
+          "value": "$total_value"
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "_id.year": 2023
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "state": "$_id.state",
+      "year": {
+        "$toString": "$_id.year"
+      },
+      "ev_sales_num": {
+        "$ifNull": [
+          {
+            "$max": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$params",
+                    "cond": {
+                      "$eq": [
+                        "$$this.parameter",
+                        "EV sales"
+                      ]
+                    }
+                  }
+                },
+                "in": "$$this.value"
+              }
+            }
+          },
+          0
+        ]
+      },
+      "market_share_num": {
+        "$round": [
+          {
+            "$ifNull": [
+              {
+                "$max": {
+                  "$map": {
+                    "input": {
+                      "$filter": {
+                        "input": "$params",
+                        "cond": {
+                          "$eq": [
+                            "$$this.parameter",
+                            "EV sales share"
+                          ]
+                        }
+                      }
+                    },
+                    "in": "$$this.value"
+                  }
+                }
+              },
+              0
+            ]
+          },
+          2
+        ]
+      },
+      "ev_stock_num": {
+        "$ifNull": [
+          {
+            "$max": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$params",
+                    "cond": {
+                      "$eq": [
+                        "$$this.parameter",
+                        "EV stock"
+                      ]
+                    }
+                  }
+                },
+                "in": "$$this.value"
+              }
+            }
+          },
+          0
+        ]
+      },
+      "bev_sales_num": {
+        "$ifNull": [
+          {
+            "$sum": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$params",
+                    "cond": {
+                      "$and": [
+                        {
+                          "$eq": [
+                            "$$this.parameter",
+                            "EV sales"
+                          ]
+                        },
+                        {
+                          "$eq": [
+                            "$$this.powertrain",
+                            "BEV"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                "in": "$$this.value"
+              }
+            }
+          },
+          0
+        ]
+      },
+      "phev_sales_num": {
+        "$ifNull": [
+          {
+            "$sum": {
+              "$map": {
+                "input": {
+                  "$filter": {
+                    "input": "$params",
+                    "cond": {
+                      "$and": [
+                        {
+                          "$eq": [
+                            "$$this.parameter",
+                            "EV sales"
+                          ]
+                        },
+                        {
+                          "$eq": [
+                            "$$this.powertrain",
+                            "PHEV"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                "in": "$$this.value"
+              }
+            }
+          },
+          0
+        ]
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "ev_sales": {
+        "$toString": {
+          "$round": [
+            "$ev_sales_num",
+            0
+          ]
+        }
+      },
+      "market_share_percent": {
+        "$toString": "$market_share_num"
+      },
+      "ev_stock": {
+        "$toString": {
+          "$round": [
+            "$ev_stock_num",
+            0
+          ]
+        }
+      },
+      "bev_sales": {
+        "$toString": {
+          "$round": [
+            "$bev_sales_num",
+            0
+          ]
+        }
+      },
+      "phev_sales": {
+        "$toString": {
+          "$round": [
+            "$phev_sales_num",
+            0
+          ]
+        }
+      },
+      "bev_preference_percent": {
+        "$toString": {
+          "$cond": [
+            {
+              "$gt": [
+                {
+                  "$add": [
+                    "$bev_sales_num",
+                    "$phev_sales_num"
+                  ]
+                },
+                0
+              ]
+            },
+            {
+              "$round": [
+                {
+                  "$multiply": [
+                    {
+                      "$divide": [
+                        "$bev_sales_num",
+                        {
+                          "$add": [
+                            "$bev_sales_num",
+                            "$phev_sales_num"
+                          ]
+                        }
+                      ]
+                    },
+                    100
+                  ]
+                },
+                1
+              ]
+            },
+            0
+          ]
+        }
+      },
+      "country_type": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "Italy"
+                ]
+              },
+              "then": "Target Country"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "Norway"
+                ]
+              },
+              "then": "EV Leader"
+            },
+            {
+              "case": {
+                "$in": [
+                  "$state",
+                  [
+                    "Germany",
+                    "France"
+                  ]
+                ]
+              },
+              "then": "Major Market"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "Europe"
+                ]
+              },
+              "then": "Regional Average"
+            }
+          ],
+          "default": "Comparison Country"
+        }
+      },
+      "market_maturity": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$gt": [
+                  "$market_share_num",
+                  20
+                ]
+              },
+              "then": "Advanced Market"
+            },
+            {
+              "case": {
+                "$gt": [
+                  "$market_share_num",
+                  10
+                ]
+              },
+              "then": "Growth Market"
+            },
+            {
+              "case": {
+                "$gt": [
+                  "$market_share_num",
+                  5
+                ]
+              },
+              "then": "Developing Market"
+            }
+          ],
+          "default": "Emerging Market"
+        }
+      },
+      "strategic_context": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "Italy"
+                ]
+              },
+              "then": "Italy Performance"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "Europe"
+                ]
+              },
+              "then": "European Benchmark"
+            }
+          ],
+          "default": "Competitive Reference"
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "$or": [
+        {
+          "ev_sales_num": {
+            "$gt": 0
+          }
+        },
+        {
+          "market_share_num": {
+            "$gt": 0
+          }
+        }
+      ]
+    }
+  },
+  {
+    "$project": {
+      "state": 1,
+      "year": 1,
+      "ev_sales": 1,
+      "market_share_percent": 1,
+      "ev_stock": 1,
+      "bev_sales": 1,
+      "phev_sales": 1,
+      "bev_preference_percent": 1,
+      "country_type": 1,
+      "market_maturity": 1,
+      "strategic_context": 1
+    }
+  },
+  {
+    "$sort": {
+      "market_share_num": -1,
+      "ev_sales_num": -1
+    }
+  }
+]

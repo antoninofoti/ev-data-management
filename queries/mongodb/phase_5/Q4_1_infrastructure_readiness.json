@@ -1,0 +1,300 @@
+[
+  {
+    "$match": {
+      "region": {
+        "$in": [
+          "Italy",
+          "Germany",
+          "France",
+          "Spain",
+          "Netherlands",
+          "Norway"
+        ]
+      },
+      "parameter": "EV stock",
+      "mode": "Cars"
+    }
+  },
+  {
+    "$addFields": {
+      "year_int": {
+        "$toInt": {
+          "$cond": [
+            {
+              "$eq": [
+                "$year",
+                ""
+              ]
+            },
+            null,
+            "$year"
+          ]
+        }
+      },
+      "value_num": {
+        "$toDouble": {
+          "$cond": [
+            {
+              "$eq": [
+                "$value",
+                ""
+              ]
+            },
+            null,
+            "$value"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "year_int": 2023
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "state": "$region",
+        "year": "$year_int"
+      },
+      "ev_stock": {
+        "$sum": "$value_num"
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "state": "$_id.state",
+      "year": {
+        "$toString": "$_id.year"
+      },
+      "ev_stock": {
+        "$toString": "$ev_stock"
+      },
+      "estimated_stations_needed": {
+        "$toString": {
+          "$round": [
+            {
+              "$divide": [
+                "$ev_stock",
+                10
+              ]
+            },
+            0
+          ]
+        }
+      },
+      "infrastructure_demand_level": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$gt": [
+                  "$ev_stock",
+                  1000000
+                ]
+              },
+              "then": "High Infrastructure Demand"
+            },
+            {
+              "case": {
+                "$gt": [
+                  "$ev_stock",
+                  500000
+                ]
+              },
+              "then": "Medium Infrastructure Demand"
+            },
+            {
+              "case": {
+                "$gt": [
+                  "$ev_stock",
+                  100000
+                ]
+              },
+              "then": "Growing Infrastructure Demand"
+            }
+          ],
+          "default": "Basic Infrastructure Needs"
+        }
+      },
+      "infrastructure_context": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$_id.state",
+                  "Germany"
+                ]
+              },
+              "then": "Leading EU Infrastructure"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id.state",
+                  "Norway"
+                ]
+              },
+              "then": "Advanced Nordic Infrastructure"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id.state",
+                  "France"
+                ]
+              },
+              "then": "Major Market Infrastructure"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id.state",
+                  "Italy"
+                ]
+              },
+              "then": "Target Market Infrastructure"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id.state",
+                  "Netherlands"
+                ]
+              },
+              "then": "Compact High-Density"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id.state",
+                  "Spain"
+                ]
+              },
+              "then": "Large Territory Challenge"
+            }
+          ],
+          "default": "European Infrastructure"
+        }
+      },
+      "analysis_focus": {
+        "$cond": [
+          {
+            "$eq": [
+              "$_id.state",
+              "Italy"
+            ]
+          },
+          "Italy Infrastructure Position",
+          "Comparison Market"
+        ]
+      },
+      "development_stage": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$gt": [
+                  "$ev_stock",
+                  1000000
+                ]
+              },
+              "then": "Mature Infrastructure Needed"
+            },
+            {
+              "case": {
+                "$gt": [
+                  "$ev_stock",
+                  500000
+                ]
+              },
+              "then": "Scaling Infrastructure Phase"
+            },
+            {
+              "case": {
+                "$gt": [
+                  "$ev_stock",
+                  100000
+                ]
+              },
+              "then": "Foundation Infrastructure Phase"
+            }
+          ],
+          "default": "Early Infrastructure Phase"
+        }
+      },
+      "strategic_priority": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$and": [
+                  {
+                    "$eq": [
+                      "$_id.state",
+                      "Italy"
+                    ]
+                  },
+                  {
+                    "$gt": [
+                      "$ev_stock",
+                      200000
+                    ]
+                  }
+                ]
+              },
+              "then": "High Priority - Italy Infrastructure Investment"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id.state",
+                  "Italy"
+                ]
+              },
+              "then": "Italy Infrastructure Development"
+            },
+            {
+              "case": {
+                "$and": [
+                  {
+                    "$in": [
+                      "$_id.state",
+                      [
+                        "Germany",
+                        "Norway"
+                      ]
+                    ]
+                  },
+                  {
+                    "$gt": [
+                      "$ev_stock",
+                      500000
+                    ]
+                  }
+                ]
+              },
+              "then": "Benchmark Reference"
+            }
+          ],
+          "default": "Benchmark Reference"
+        }
+      },
+      "sort_stock": "$ev_stock"
+    }
+  },
+  {
+    "$sort": {
+      "sort_stock": -1
+    }
+  },
+  {
+    "$project": {
+      "sort_stock": 0
+    }
+  }
+]

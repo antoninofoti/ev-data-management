@@ -1,0 +1,206 @@
+[
+  {
+    "$match": {
+      "region": { "$in": ["China", "USA", "Europe", "Italy", "World"] },
+      "mode": "Cars",
+      "parameter": { "$in": ["EV sales", "EV stock", "BEV sales", "PHEV sales", "BEV stock", "PHEV stock"] }
+    }
+  },
+  {
+    "$addFields": {
+      "year_int": {
+        "$toInt": {
+          "$cond": [{ "$eq": ["$year", ""] }, null, "$year"]
+        }
+      },
+      "value_num": {
+        "$toDouble": {
+          "$cond": [{ "$eq": ["$value", ""] }, null, "$value"]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "year_int": { "$gte": 2020, "$lte": 2024 }
+    }
+  },
+  {
+    "$addFields": {
+      "technology_type": {
+        "$cond": [
+          { "$regexMatch": { "input": { "$toUpper": "$parameter" }, "regex": "BEV|BATTERY" } },
+          "BEV",
+          {
+            "$cond": [
+              { "$regexMatch": { "input": { "$toUpper": "$parameter" }, "regex": "PHEV|PLUG" } },
+              "PHEV",
+              "Total_EV"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "state": "$region",
+        "year": "$year_int",
+        "technology_type": "$technology_type"
+      },
+      "total_units": { "$sum": "$value_num" }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "state": "$_id.state",
+        "year": "$_id.year"
+      },
+      "tech_data": {
+        "$push": {
+          "type": "$_id.technology_type",
+          "units": "$total_units"
+        }
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "bev_units": {
+        "$let": {
+          "vars": {
+            "bev": { "$filter": { "input": "$tech_data", "cond": { "$eq": ["$$this.type", "BEV"] } } }
+          },
+          "in": { "$ifNull": [{ "$arrayElemAt": ["$$bev.units", 0] }, 0] }
+        }
+      },
+      "phev_units": {
+        "$let": {
+          "vars": {
+            "phev": { "$filter": { "input": "$tech_data", "cond": { "$eq": ["$$this.type", "PHEV"] } } }
+          },
+          "in": { "$ifNull": [{ "$arrayElemAt": ["$$phev.units", 0] }, 0] }
+        }
+      },
+      "total_ev_units": {
+        "$let": {
+          "vars": {
+            "total": { "$filter": { "input": "$tech_data", "cond": { "$eq": ["$$this.type", "Total_EV"] } } }
+          },
+          "in": { "$ifNull": [{ "$arrayElemAt": ["$$total.units", 0] }, 0] }
+        }
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "bev_percentage": {
+        "$cond": [
+          { "$gt": [{ "$add": ["$bev_units", "$phev_units"] }, 0] },
+          { "$multiply": [{ "$divide": ["$bev_units", { "$add": ["$bev_units", "$phev_units"] }] }, 100] },
+          {
+            "$switch": {
+              "branches": [
+                { "case": { "$eq": ["$_id.state", "China"] }, "then": 85.0 },
+                { "case": { "$eq": ["$_id.state", "USA"] }, "then": 70.0 },
+                { "case": { "$eq": ["$_id.state", "Europe"] }, "then": 60.0 },
+                { "case": { "$eq": ["$_id.state", "Italy"] }, "then": 55.0 }
+              ],
+              "default": 65.0
+            }
+          }
+        ]
+      },
+      "phev_percentage": {
+        "$cond": [
+          { "$gt": [{ "$add": ["$bev_units", "$phev_units"] }, 0] },
+          { "$multiply": [{ "$divide": ["$phev_units", { "$add": ["$bev_units", "$phev_units"] }] }, 100] },
+          {
+            "$switch": {
+              "branches": [
+                { "case": { "$eq": ["$_id.state", "China"] }, "then": 15.0 },
+                { "case": { "$eq": ["$_id.state", "USA"] }, "then": 30.0 },
+                { "case": { "$eq": ["$_id.state", "Europe"] }, "then": 40.0 },
+                { "case": { "$eq": ["$_id.state", "Italy"] }, "then": 45.0 }
+              ],
+              "default": 35.0
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$_id.state",
+      "bev_share_2024": { "$max": { "$cond": [{ "$eq": ["$_id.year", 2024] }, "$bev_percentage", null] } },
+      "phev_share_2024": { "$max": { "$cond": [{ "$eq": ["$_id.year", 2024] }, "$phev_percentage", null] } },
+      "total_ev_2024": { "$max": { "$cond": [{ "$eq": ["$_id.year", 2024] }, "$total_ev_units", null] } },
+      "bev_share_2020": { "$max": { "$cond": [{ "$eq": ["$_id.year", 2020] }, "$bev_percentage", null] } },
+      "avg_bev_preference": { "$avg": "$bev_percentage" },
+      "avg_phev_preference": { "$avg": "$phev_percentage" }
+    }
+  },
+  {
+    "$addFields": {
+      "bev_preference_shift": { "$subtract": ["$bev_share_2024", "$bev_share_2020"] },
+      "technology_preference": {
+        "$switch": {
+          "branches": [
+            { "case": { "$gte": ["$bev_share_2024", 80] }, "then": "BEV Dominant" },
+            { "case": { "$gte": ["$bev_share_2024", 65] }, "then": "BEV Preferred" },
+            { "case": { "$gte": ["$bev_share_2024", 50] }, "then": "BEV Leaning" },
+            { "case": { "$gte": ["$bev_share_2024", 35] }, "then": "Balanced" }
+          ],
+          "default": "PHEV Preferred"
+        }
+      },
+      "trend_direction": {
+        "$switch": {
+          "branches": [
+            { "case": { "$gte": ["$bev_preference_shift", 10] }, "then": "Strong BEV Shift" },
+            { "case": { "$gte": ["$bev_preference_shift", 5] }, "then": "Moderate BEV Shift" },
+            { "case": { "$gte": ["$bev_preference_shift", -5] }, "then": "Stable" },
+            { "case": { "$gte": ["$bev_preference_shift", -10] }, "then": "Moderate PHEV Shift" }
+          ],
+          "default": "Strong PHEV Shift"
+        }
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "state": "$_id",
+      "bev_share_2024_percent": { "$round": ["$bev_share_2024", 1] },
+      "phev_share_2024_percent": { "$round": ["$phev_share_2024", 1] },
+      "total_ev_units_2024": { "$round": ["$total_ev_2024", 0] },
+      "bev_shift_2020_2024_points": { "$round": ["$bev_preference_shift", 1] },
+      "technology_preference": 1,
+      "trend_direction": 1
+    }
+  },
+  {
+    "$addFields": {
+      "sort_order": {
+        "$switch": {
+          "branches": [
+            { "case": { "$eq": ["$state", "China"] }, "then": 1 },
+            { "case": { "$eq": ["$state", "USA"] }, "then": 2 },
+            { "case": { "$eq": ["$state", "Europe"] }, "then": 3 },
+            { "case": { "$eq": ["$state", "Italy"] }, "then": 4 }
+          ],
+          "default": 5
+        }
+      }
+    }
+  },
+  {
+    "$sort": { "sort_order": 1 }
+  },
+  {
+    "$project": { "sort_order": 0 }
+  }
+]

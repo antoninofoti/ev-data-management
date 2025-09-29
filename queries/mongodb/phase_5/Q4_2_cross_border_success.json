@@ -1,0 +1,98 @@
+[
+  {
+    "$match": {
+      "base_msrp": {
+        "$nin": [
+          null,
+          ""
+        ]
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "price_numeric": {
+        "$toDouble": {
+          "$cond": [
+            {
+              "$eq": [
+                "$base_msrp",
+                ""
+              ]
+            },
+            null,
+            "$base_msrp"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "price_numeric": {
+        "$gt": 0
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$make",
+      "market_presence": {
+        "$sum": 1
+      },
+      "avg_price": {
+        "$avg": "$price_numeric"
+      }
+    }
+  },
+  {
+    "$match": {
+      "market_presence": {
+        "$gt": 10
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "price_segment": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$lt": [
+                  "$avg_price",
+                  35000
+                ]
+              },
+              "then": "Mass Market"
+            },
+            {
+              "case": {
+                "$lt": [
+                  "$avg_price",
+                  60000
+                ]
+              },
+              "then": "Premium"
+            }
+          ],
+          "default": "Luxury"
+        }
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "make": "$_id",
+      "market_presence": 1,
+      "avg_price": 1,
+      "price_segment": 1
+    }
+  },
+  {
+    "$sort": {
+      "market_presence": -1
+    }
+  }
+]

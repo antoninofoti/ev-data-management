@@ -1,0 +1,137 @@
+[
+  {
+    "$match": {
+      "city": {
+        "$nin": [null, ""]
+      },
+      "power_kw": {
+        "$gt": 0
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$city",
+      "total_stations": {
+        "$sum": 1
+      },
+      "countries_covered": {
+        "$addToSet": "$country_code"
+      },
+      "avg_power": {
+        "$avg": "$power_kw"
+      },
+      "ultra_fast_stations": {
+        "$sum": {
+          "$cond": [
+            {
+              "$gte": [
+                "$power_kw",
+                150
+              ]
+            },
+            1,
+            0
+          ]
+        }
+      },
+      "fast_stations": {
+        "$sum": {
+          "$cond": [
+            {
+              "$gte": [
+                "$power_kw",
+                50
+              ]
+            },
+            1,
+            0
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "total_stations": {
+        "$gte": 10
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "countries_count": {
+        "$size": "$countries_covered"
+      },
+      "coverage_score": {
+        "$multiply": [
+          {
+            "$size": "$countries_covered"
+          },
+          {
+            "$divide": [
+              "$total_stations",
+              {
+                "$max": [
+                  100,
+                  1
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "ultra_fast_percentage": {
+        "$multiply": [
+          {
+            "$divide": [
+              "$ultra_fast_stations",
+              {
+                "$max": [
+                  "$total_stations",
+                  1
+                ]
+              }
+            ]
+          },
+          100
+        ]
+      }
+    }
+  },
+  {
+    "$sort": {
+      "coverage_score": -1
+    }
+  },
+  {
+    "$limit": 20
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "network_name": "$_id",
+      "total_stations": 1,
+      "countries_count": 1,
+      "avg_power_kw": {
+        "$round": [
+          "$avg_power",
+          1
+        ]
+      },
+      "ultra_fast_stations": 1,
+      "ultra_fast_percentage": {
+        "$round": [
+          "$ultra_fast_percentage",
+          1
+        ]
+      },
+      "coverage_score": {
+        "$round": [
+          "$coverage_score",
+          1
+        ]
+      }
+    }
+  }
+]

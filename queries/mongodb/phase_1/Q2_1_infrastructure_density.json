@@ -1,0 +1,161 @@
+[
+  {
+    "$match": {
+      "country_code": {
+        "$nin": [
+          null,
+          ""
+        ]
+      },
+      "power_kw": {
+        "$gt": 0
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$country_code",
+      "total_stations": {
+        "$sum": 1
+      },
+      "ultra_fast_stations": {
+        "$sum": {
+          "$cond": [
+            {
+              "$gte": [
+                "$power_kw",
+                150
+              ]
+            },
+            1,
+            0
+          ]
+        }
+      },
+      "fast_stations": {
+        "$sum": {
+          "$cond": [
+            {
+              "$gte": [
+                "$power_kw",
+                50
+              ]
+            },
+            1,
+            0
+          ]
+        }
+      },
+      "avg_power_kw": {
+        "$avg": "$power_kw"
+      },
+      "unique_locations": {
+        "$addToSet": "$city"
+      }
+    }
+  },
+  {
+    "$match": {
+      "total_stations": {
+        "$gte": 10
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "ultra_fast_percentage": {
+        "$round": [
+          {
+            "$multiply": [
+              {
+                "$divide": [
+                  "$ultra_fast_stations",
+                  {
+                    "$max": [
+                      "$total_stations",
+                      1
+                    ]
+                  }
+                ]
+              },
+              100
+            ]
+          },
+          1
+        ]
+      },
+      "fast_percentage": {
+        "$round": [
+          {
+            "$multiply": [
+              {
+                "$divide": [
+                  "$fast_stations",
+                  {
+                    "$max": [
+                      "$total_stations",
+                      1
+                    ]
+                  }
+                ]
+              },
+              100
+            ]
+          },
+          1
+        ]
+      },
+      "unique_locations_count": {
+        "$size": "$unique_locations"
+      },
+      "density_category": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$gte": [
+                  "$total_stations",
+                  1000
+                ]
+              },
+              "then": "High Density"
+            },
+            {
+              "case": {
+                "$gte": [
+                  "$total_stations",
+                  100
+                ]
+              },
+              "then": "Medium Density"
+            }
+          ],
+          "default": "Low Density"
+        }
+      }
+    }
+  },
+  {
+    "$sort": {
+      "total_stations": -1
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "country_code": "$_id",
+      "total_stations": 1,
+      "ultra_fast_stations": 1,
+      "ultra_fast_percentage": 1,
+      "fast_percentage": 1,
+      "unique_locations": "$unique_locations_count",
+      "density_category": 1,
+      "avg_power_kw": {
+        "$round": [
+          "$avg_power_kw",
+          1
+        ]
+      }
+    }
+  }
+]

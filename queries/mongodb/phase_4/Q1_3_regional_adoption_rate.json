@@ -1,0 +1,120 @@
+[
+  {
+    "$match": {
+      "model_year": {
+        "$gte": 2020
+      },
+      "state": {
+        "$nin": [null, ""]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$state",
+      "unique_manufacturers": {
+        "$addToSet": "$make"
+      },
+      "unique_models": {
+        "$addToSet": {
+          "make": "$make",
+          "model": "$model"
+        }
+      },
+      "total_ev_registrations": {
+        "$sum": 1
+      },
+      "avg_price": {
+        "$avg": {
+          "$cond": [
+            { "$gt": ["$base_msrp", 0] },
+            "$base_msrp", 
+            null
+          ]
+        }
+      },
+      "avg_range": {
+        "$avg": {
+          "$cond": [
+            { "$gt": ["$electric_range", 0] },
+            "$electric_range",
+            null
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "total_ev_registrations": {
+        "$gte": 50
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "unique_manufacturers_count": { "$size": "$unique_manufacturers" },
+      "unique_models_count": { "$size": "$unique_models" },
+      "avg_registrations_per_model": {
+        "$round": [
+          {
+            "$divide": [
+              "$total_ev_registrations",
+              { "$max": [{ "$size": "$unique_models" }, 1] }
+            ]
+          },
+          1
+        ]
+      },
+      "models_per_manufacturer": {
+        "$round": [
+          {
+            "$divide": [
+              { "$size": "$unique_models" },
+              { "$max": [{ "$size": "$unique_manufacturers" }, 1] }
+            ]
+          },
+          1
+        ]
+      },
+      "adoption_level": {
+        "$switch": {
+          "branches": [
+            {
+              "case": { "$gte": ["$total_ev_registrations", 10000] },
+              "then": "High Adoption"
+            },
+            {
+              "case": { "$gte": ["$total_ev_registrations", 1000] },
+              "then": "Moderate Adoption"
+            },
+            {
+              "case": { "$gte": ["$total_ev_registrations", 100] },
+              "then": "Low Adoption"
+            }
+          ],
+          "default": "Minimal Adoption"
+        }
+      }
+    }
+  },
+  {
+    "$sort": {
+      "total_ev_registrations": -1
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "state": "$_id",
+      "unique_manufacturers": "$unique_manufacturers_count",
+      "unique_models": "$unique_models_count", 
+      "total_ev_registrations": 1,
+      "avg_price": { "$round": ["$avg_price", 0] },
+      "avg_range": { "$round": ["$avg_range", 0] },
+      "avg_registrations_per_model": 1,
+      "models_per_manufacturer": 1,
+      "adoption_level": 1
+    }
+  }
+]

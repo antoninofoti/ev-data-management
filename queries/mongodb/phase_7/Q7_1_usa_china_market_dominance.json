@@ -1,0 +1,114 @@
+[
+  {
+    "$addFields": {
+      "year_int": {
+        "$toInt": {
+          "$cond": [
+            {
+              "$eq": [
+                "$year",
+                ""
+              ]
+            },
+            null,
+            "$year"
+          ]
+        }
+      },
+      "value_num": {
+        "$toDouble": {
+          "$cond": [
+            {
+              "$eq": [
+                "$value",
+                ""
+              ]
+            },
+            null,
+            "$value"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "region": {
+        "$in": [
+          "USA",
+          "China"
+        ]
+      },
+      "year_int": 2023,
+      "$or": [
+        {
+          "parameter": {
+            "$in": [
+              "EV sales",
+              "EV stock"
+            ]
+          },
+          "powertrain": {
+            "$in": [
+              "BEV",
+              "PHEV",
+              "FCEV"
+            ]
+          }
+        },
+        {
+          "parameter": "EV sales share",
+          "powertrain": "EV"
+        }
+      ]
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "region": "$region",
+        "parameter": "$parameter"
+      },
+      "total_value": {
+        "$sum": "$value_num"
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "region": "$_id.region",
+      "parameter": "$_id.parameter",
+      "value_millions": {
+        "$round": [
+          {
+            "$divide": [
+              "$total_value",
+              1000000
+            ]
+          },
+          1
+        ]
+      },
+      "unit": {
+        "$cond": [
+          {
+            "$regexMatch": {
+              "input": "$_id.parameter",
+              "regex": "share",
+              "options": "i"
+            }
+          },
+          "%",
+          "M vehicles"
+        ]
+      }
+    }
+  },
+  {
+    "$sort": {
+      "parameter": 1,
+      "region": 1
+    }
+  }
+]

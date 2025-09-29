@@ -1,0 +1,193 @@
+[
+  {
+    "$match": {
+      "region": {
+        "$in": ["EU27", "World"]
+      },
+      "parameter": {
+        "$in": [
+          "EV sales",
+          "EV sales share",
+          "EV stock"
+        ]
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "year_int": {
+        "$toInt": {
+          "$cond": [
+            {
+              "$eq": [
+                "$year",
+                ""
+              ]
+            },
+            null,
+            "$year"
+          ]
+        }
+      },
+      "value_num": {
+        "$toDouble": {
+          "$cond": [
+            {
+              "$eq": [
+                "$value",
+                ""
+              ]
+            },
+            null,
+            "$value"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "year_int": {
+        "$in": [
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "year": "$year_int",
+        "parameter": "$parameter"
+      },
+      "total_value": {
+        "$sum": "$value_num"
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$_id.year",
+      "params": {
+        "$push": "$$ROOT"
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "year": {
+        "$toString": "$_id"
+      },
+      "ev_sales": {
+        "$round": [
+          {
+            "$let": {
+              "vars": {
+                "sales": {
+                  "$filter": {
+                    "input": "$params",
+                    "cond": {
+                      "$eq": [
+                        "$$this._id.parameter",
+                        "EV sales"
+                      ]
+                    }
+                  }
+                }
+              },
+              "in": {
+                "$ifNull": [
+                  {
+                    "$arrayElemAt": [
+                      "$$sales.total_value",
+                      0
+                    ]
+                  },
+                  0
+                ]
+              }
+            }
+          },
+          0
+        ]
+      },
+      "ev_sales_share": {
+        "$round": [
+          {
+            "$let": {
+              "vars": {
+                "share": {
+                  "$filter": {
+                    "input": "$params",
+                    "cond": {
+                      "$eq": [
+                        "$$this._id.parameter",
+                        "EV sales share"
+                      ]
+                    }
+                  }
+                }
+              },
+              "in": {
+                "$ifNull": [
+                  {
+                    "$arrayElemAt": [
+                      "$$share.total_value",
+                      0
+                    ]
+                  },
+                  0
+                ]
+              }
+            }
+          },
+          2
+        ]
+      },
+      "ev_stock": {
+        "$round": [
+          {
+            "$let": {
+              "vars": {
+                "stock": {
+                  "$filter": {
+                    "input": "$params",
+                    "cond": {
+                      "$eq": [
+                        "$$this._id.parameter",
+                        "EV stock"
+                      ]
+                    }
+                  }
+                }
+              },
+              "in": {
+                "$ifNull": [
+                  {
+                    "$arrayElemAt": [
+                      "$$stock.total_value",
+                      0
+                    ]
+                  },
+                  0
+                ]
+              }
+            }
+          },
+          0
+        ]
+      }
+    }
+  },
+  {
+    "$sort": {
+      "year": 1
+    }
+  }
+]

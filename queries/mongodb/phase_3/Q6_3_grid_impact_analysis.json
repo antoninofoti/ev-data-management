@@ -1,0 +1,111 @@
+[
+  {
+    "$match": {
+      "country_code": {
+        "$nin": [null, ""]
+      },
+      "power_kw": {
+        "$gt": 0
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$country_code",
+      "total_stations": {
+        "$sum": 1
+      },
+      "total_power_capacity": {
+        "$sum": "$power_kw"
+      },
+      "total_charging_ports": {
+        "$sum": "$ports"
+      },
+      "avg_station_power": {
+        "$avg": "$power_kw"
+      },
+      "max_station_power": {
+        "$max": "$power_kw"
+      },
+      "ultra_fast_stations": {
+        "$sum": {
+          "$cond": [
+            { "$gte": ["$power_kw", 150] },
+            1,
+            0
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "total_stations": {
+        "$gte": 10
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "total_mw_capacity": {
+        "$round": [
+          { "$divide": ["$total_power_capacity", 1000] },
+          1
+        ]
+      },
+      "avg_kw_per_station": {
+        "$round": [
+          { "$divide": ["$total_power_capacity", "$total_stations"] },
+          1
+        ]
+      },
+      "ultra_fast_percentage": {
+        "$round": [
+          {
+            "$multiply": [
+              { "$divide": ["$ultra_fast_stations", "$total_stations"] },
+              100
+            ]
+          },
+          1
+        ]
+      },
+      "grid_impact_level": {
+        "$switch": {
+          "branches": [
+            {
+              "case": { "$gte": ["$total_power_capacity", 100000] },
+              "then": "High Grid Impact"
+            },
+            {
+              "case": { "$gte": ["$total_power_capacity", 10000] },
+              "then": "Moderate Grid Impact"
+            }
+          ],
+          "default": "Low Grid Impact"
+        }
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "country_code": "$_id",
+      "total_stations": 1,
+      "total_power_capacity": 1,
+      "total_charging_ports": 1,
+      "avg_station_power": 1,
+      "max_station_power": 1,
+      "ultra_fast_stations": 1,
+      "total_mw_capacity": 1,
+      "avg_kw_per_station": 1,
+      "ultra_fast_percentage": 1,
+      "grid_impact_level": 1
+    }
+  },
+  {
+    "$sort": {
+      "total_power_capacity": -1
+    }
+  }
+]

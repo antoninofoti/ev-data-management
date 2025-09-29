@@ -1,0 +1,150 @@
+[
+  {
+    "$match": {
+      "state": { "$nin": [null, ""] }
+    }
+  },
+  {
+    "$addFields": {
+      "model_year_int": {
+        "$toInt": {
+          "$cond": [
+            { "$eq": ["$model_year", ""] },
+            null,
+            "$model_year"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "model_year_int": { "$gte": 2020 }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "brand": "$make",
+        "state": "$state"
+      },
+      "model_count": { "$addToSet": "$model" },
+      "total_sales": { "$sum": 1 },
+      "prices": { "$push": "$base_msrp" },
+      "ranges": { "$push": "$electric_range" }
+    }
+  },
+  {
+    "$match": {
+      "total_sales": { "$gte": 10 }
+    }
+  },
+  {
+    "$addFields": {
+      "model_count_num": { "$size": "$model_count" },
+      "avg_price": {
+        "$avg": {
+          "$map": {
+            "input": {
+              "$filter": {
+                "input": "$prices",
+                "cond": { "$and": [{ "$ne": ["$$this", ""] }, { "$ne": ["$$this", null] }] }
+              }
+            },
+            "as": "price",
+            "in": { "$toDouble": "$$price" }
+          }
+        }
+      },
+      "avg_range": {
+        "$avg": {
+          "$map": {
+            "input": {
+              "$filter": {
+                "input": "$ranges",
+                "cond": { "$and": [{ "$ne": ["$$this", ""] }, { "$ne": ["$$this", null] }] }
+              }
+            },
+            "as": "range",
+            "in": { "$toDouble": "$$range" }
+          }
+        }
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$_id.state",
+      "brands": {
+        "$push": {
+          "brand": "$_id.brand",
+          "model_count": "$model_count_num",
+          "total_sales": "$total_sales",
+          "avg_price": "$avg_price",
+          "avg_range": "$avg_range"
+        }
+      },
+      "region_total_sales": { "$sum": "$total_sales" }
+    }
+  },
+  {
+    "$unwind": "$brands"
+  },
+  {
+    "$addFields": {
+      "brands.regional_market_share": {
+        "$round": [
+          { "$multiply": [{ "$divide": ["$brands.total_sales", "$region_total_sales"] }, 100] },
+          2
+        ]
+      }
+    }
+  },
+  {
+    "$sort": {
+      "_id": 1,
+      "brands.total_sales": -1
+    }
+  },
+  {
+    "$group": {
+      "_id": "$_id",
+      "brands": { "$push": "$brands" }
+    }
+  },
+  {
+    "$unwind": {
+      "path": "$brands",
+      "includeArrayIndex": "regional_rank"
+    }
+  },
+  {
+    "$addFields": {
+      "brands.regional_rank": { "$add": ["$regional_rank", 1] }
+    }
+  },
+  {
+    "$match": {
+      "brands.regional_rank": { "$lte": 5 }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "brand": "$brands.brand",
+      "state": "$_id",
+      "model_count": "$brands.model_count",
+      "total_sales": "$brands.total_sales",
+      "avg_price": { "$round": ["$brands.avg_price", 0] },
+      "avg_range": { "$round": ["$brands.avg_range", 0] },
+      "regional_market_share": "$brands.regional_market_share",
+      "regional_rank": "$brands.regional_rank"
+    }
+  },
+  {
+    "$sort": {
+      "state": 1,
+      "regional_rank": 1
+    }
+  }
+]

@@ -1,0 +1,100 @@
+[
+  {
+    "$match": {
+      "region": {
+        "$in": [
+          "USA",
+          "China"
+        ]
+      },
+      "parameter": {
+        "$in": [
+          "Oil displacement Mbd",
+          "Oil displacement, million lge"
+        ]
+      },
+      "powertrain": "EV"
+    }
+  },
+  {
+    "$addFields": {
+      "year_int": {
+        "$toInt": {
+          "$cond": [
+            {
+              "$eq": [
+                "$year",
+                ""
+              ]
+            },
+            null,
+            "$year"
+          ]
+        }
+      },
+      "value_num": {
+        "$toDouble": {
+          "$cond": [
+            {
+              "$eq": [
+                "$value",
+                ""
+              ]
+            },
+            null,
+            "$value"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "year_int": 2023
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "region": "$region",
+        "parameter": "$parameter"
+      },
+      "oil_saved_2023": {
+        "$sum": "$value_num"
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "region": "$_id.region_name",
+      "parameter": "$_id.parameter",
+      "oil_saved_2023": {
+        "$toString": {
+          "$round": [
+            "$oil_saved_2023",
+            2
+          ]
+        }
+      },
+      "unit": {
+        "$cond": [
+          {
+            "$eq": [
+              "$_id.parameter",
+              "Oil displacement Mbd"
+            ]
+          },
+          "million barrels/day",
+          "million liters gasoline equivalent"
+        ]
+      }
+    }
+  },
+  {
+    "$sort": {
+      "region": 1,
+      "parameter": 1
+    }
+  }
+]

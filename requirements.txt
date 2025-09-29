@@ -1,0 +1,10 @@
+# EV Data Management Project - Simplified Dependencies
+# Essential Database Connectivity
+psycopg2-binary>=2.9.7
+pymongo>=4.5.0
+
+# Web Scraping & Data Download
+requests>=2.31.0
+
+# Configuration
+python-dotenv>=1.0.0

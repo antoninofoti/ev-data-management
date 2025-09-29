@@ -1,0 +1,60 @@
+[
+  {
+    "$match": {
+      "region": {
+        "$in": [
+          "USA",
+          "China"
+        ]
+      },
+      "year": 2023,
+      "parameter": "EV sales",
+      "powertrain": {
+        "$in": [
+          "BEV",
+          "PHEV"
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "region": "$region",
+        "powertrain": "$powertrain"
+      },
+      "sales_volume": {
+        "$sum": "$value"
+      }
+    }
+  },
+  {
+    "$project": {
+      "region": "$_id.region",
+      "make": "$_id.powertrain",
+      "sales_millions": {
+        "$round": [
+          {
+            "$divide": [
+              "$sales_volume",
+              {
+                "$max": [
+                  1000000,
+                  1
+                ]
+              }
+            ]
+          },
+          1
+        ]
+      },
+      "unit": "M vehicles"
+    }
+  },
+  {
+    "$sort": {
+      "region": 1,
+      "sales_millions": -1
+    }
+  }
+]

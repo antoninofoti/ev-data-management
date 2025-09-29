@@ -1,0 +1,143 @@
+[
+  {
+    "$match": {
+      "model_year": {
+        "$gte": 2020,
+        "$lte": 2024
+      },
+      "electric_vehicle_type": {
+        "$in": [
+          "Battery Electric Vehicle (BEV)",
+          "Plug-in Hybrid Electric Vehicle (PHEV)"
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "year": "$model_year",
+        "powertrain": "$electric_vehicle_type"
+      },
+      "total_registrations": {
+        "$sum": 1
+      },
+      "manufacturer_count": {
+        "$addToSet": "$make"
+      },
+      "avg_price": {
+        "$avg": {
+          "$cond": [
+            {
+              "$gt": [
+                "$base_msrp",
+                0
+              ]
+            },
+            "$base_msrp",
+            null
+          ]
+        }
+      },
+      "avg_range": {
+        "$avg": {
+          "$cond": [
+            {
+              "$gt": [
+                "$electric_range",
+                0
+              ]
+            },
+            "$electric_range",
+            null
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "manufacturer_count": {
+        "$size": "$manufacturer_count"
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$_id.year",
+      "powertrains": {
+        "$push": {
+          "powertrain": "$_id.powertrain",
+          "total_registrations": "$total_registrations",
+          "manufacturer_count": "$manufacturer_count",
+          "avg_price": "$avg_price",
+          "avg_range": "$avg_range"
+        }
+      },
+      "year_total": {
+        "$sum": "$total_registrations"
+      }
+    }
+  },
+  {
+    "$unwind": "$powertrains"
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "year": "$_id",
+      "powertrain": {
+        "$cond": [
+          {
+            "$eq": [
+              "$powertrains.powertrain",
+              "Battery Electric Vehicle (BEV)"
+            ]
+          },
+          "BEV",
+          "PHEV"
+        ]
+      },
+      "total_registrations": "$powertrains.total_registrations",
+      "manufacturer_count": "$powertrains.manufacturer_count",
+      "avg_price": {
+        "$toInt": {
+          "$ifNull": [
+            "$powertrains.avg_price",
+            0
+          ]
+        }
+      },
+      "avg_range": {
+        "$toInt": {
+          "$ifNull": [
+            "$powertrains.avg_range",
+            0
+          ]
+        }
+      },
+      "market_share_pct": {
+        "$round": [
+          {
+            "$multiply": [
+              {
+                "$divide": [
+                  "$powertrains.total_registrations",
+                  "$year_total"
+                ]
+              },
+              100
+            ]
+          },
+          2
+        ]
+      }
+    }
+  },
+  {
+    "$sort": {
+      "year": -1,
+      "powertrain": 1
+    }
+  }
+]

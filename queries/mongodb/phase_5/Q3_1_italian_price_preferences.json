@@ -1,0 +1,308 @@
+[
+  {
+    "$match": {
+      "base_msrp": {
+        "$gt": 0
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "price_segment_eur": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$lt": [
+                  "$base_msrp",
+                  20000
+                ]
+              },
+              "then": "Ultra Budget (<\u20ac20k)"
+            },
+            {
+              "case": {
+                "$lt": [
+                  "$base_msrp",
+                  30000
+                ]
+              },
+              "then": "Budget (\u20ac20k-\u20ac30k)"
+            },
+            {
+              "case": {
+                "$lt": [
+                  "$base_msrp",
+                  45000
+                ]
+              },
+              "then": "Mass Market (\u20ac30k-\u20ac45k)"
+            },
+            {
+              "case": {
+                "$lt": [
+                  "$base_msrp",
+                  65000
+                ]
+              },
+              "then": "Premium (\u20ac45k-\u20ac65k)"
+            }
+          ],
+          "default": "Luxury (\u20ac65k+)"
+        }
+      },
+      "italian_preference_category": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$and": [
+                  {
+                    "$lt": [
+                      "$base_msrp",
+                      35000
+                    ]
+                  },
+                  {
+                    "$gte": [
+                      "$electric_range",
+                      250
+                    ]
+                  }
+                ]
+              },
+              "then": "Italian Sweet Spot"
+            },
+            {
+              "case": {
+                "$and": [
+                  {
+                    "$lt": [
+                      "$base_msrp",
+                      25000
+                    ]
+                  },
+                  {
+                    "$gte": [
+                      "$electric_range",
+                      200
+                    ]
+                  }
+                ]
+              },
+              "then": "Budget Conscious"
+            },
+            {
+              "case": {
+                "$and": [
+                  {
+                    "$gte": [
+                      "$base_msrp",
+                      50000
+                    ]
+                  },
+                  {
+                    "$gte": [
+                      "$electric_range",
+                      400
+                    ]
+                  }
+                ]
+              },
+              "then": "Premium Performance"
+            }
+          ],
+          "default": "Standard Market"
+        }
+      },
+      "value_ratio": {
+        "$divide": [
+          "$electric_range",
+          {
+            "$max": [
+              "$base_msrp",
+              1
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "price_segment": "$price_segment_eur",
+        "preference_category": "$italian_preference_category"
+      },
+      "model_count": {
+        "$sum": 1
+      },
+      "total_sales": {
+        "$sum": "$count"
+      },
+      "avg_price": {
+        "$avg": {
+          "$cond": [
+            {
+              "$gt": [
+                "$base_msrp",
+                0
+              ]
+            },
+            "$base_msrp",
+            null
+          ]
+        }
+      },
+      "avg_range": {
+        "$avg": "$electric_range"
+      },
+      "avg_value_ratio": {
+        "$avg": "$value_ratio"
+      },
+      "min_price": {
+        "$min": "$base_msrp"
+      },
+      "max_price": {
+        "$max": "$base_msrp"
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "market_penetration": {
+        "$multiply": [
+          {
+            "$divide": [
+              "$total_sales",
+              {
+                "$max": [
+                  {
+                    "$sum": "$total_sales"
+                  },
+                  1
+                ]
+              }
+            ]
+          },
+          100
+        ]
+      },
+      "italian_appeal_score": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$_id.preference_category",
+                  "Italian Sweet Spot"
+                ]
+              },
+              "then": 10
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$_id.preference_category",
+                  "Budget Conscious"
+                ]
+              },
+              "then": 8
+            },
+            {
+              "case": {
+                "$and": [
+                  {
+                    "$gte": [
+                      "$avg_value_ratio",
+                      0.008
+                    ]
+                  },
+                  {
+                    "$lt": [
+                      "$avg_price",
+                      40000
+                    ]
+                  }
+                ]
+              },
+              "then": 7
+            }
+          ],
+          "default": 5
+        }
+      }
+    }
+  },
+  {
+    "$sort": {
+      "total_sales": -1
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "price_segment": "$_id.price_segment",
+      "preference_category": "$_id.preference_category",
+      "model_count": 1,
+      "total_sales": 1,
+      "market_penetration_percent": {
+        "$round": [
+          "$market_penetration",
+          2
+        ]
+      },
+      "avg_price_eur": {
+        "$round": [
+          "$avg_price",
+          0
+        ]
+      },
+      "avg_range_km": {
+        "$round": [
+          {
+            "$multiply": [
+              "$avg_range",
+              1.609
+            ]
+          },
+          0
+        ]
+      },
+      "value_ratio_km_per_eur": {
+        "$round": [
+          {
+            "$multiply": [
+              "$avg_value_ratio",
+              1.609
+            ]
+          },
+          4
+        ]
+      },
+      "italian_appeal_score": 1,
+      "price_range_eur": {
+        "$concat": [
+          "\u20ac",
+          {
+            "$toString": {
+              "$round": [
+                "$min_price",
+                0
+              ]
+            }
+          },
+          " - \u20ac",
+          {
+            "$toString": {
+              "$round": [
+                "$max_price",
+                0
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+]

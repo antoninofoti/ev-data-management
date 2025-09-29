@@ -1,0 +1,276 @@
+[
+  {
+    "$match": {
+      "value": { "$gt": 0 },
+      "region": { "$in": ["China", "USA", "Europe", "Italy", "World"] },
+      "mode": "Cars",
+      "powertrain": { "$in": ["BEV", "PHEV", "FCEV"] },
+      "parameter": { "$in": ["EV sales", "EV stock", "EV sales share"] },
+      "year": { "$gte": 2020, "$lte": 2023 }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "technology": "$powertrain",
+        "state": "$region",
+        "year": "$year"
+      },
+      "ev_sales": {
+        "$sum": {
+          "$cond": [
+            { "$eq": ["$parameter", "EV sales"] },
+            "$value",
+            0
+          ]
+        }
+      },
+      "ev_stock": {
+        "$sum": {
+          "$cond": [
+            { "$eq": ["$parameter", "EV stock"] },
+            "$value",
+            0
+          ]
+        }
+      },
+      "market_share": {
+        "$sum": {
+          "$cond": [
+            { "$eq": ["$parameter", "EV sales share"] },
+            "$value",
+            0
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$facet": {
+      "data_2023": [
+        {
+          "$match": {
+            "_id.year": 2023
+          }
+        },
+        {
+          "$project": {
+            "technology": "$_id.technology",
+            "state": "$_id.state",
+            "sales_2023": "$ev_sales",
+            "stock_2023": "$ev_stock",
+            "share_2023": "$market_share"
+          }
+        }
+      ],
+      "data_2020": [
+        {
+          "$match": {
+            "_id.year": 2020
+          }
+        },
+        {
+          "$project": {
+            "technology": "$_id.technology",
+            "state": "$_id.state",
+            "sales_2020": "$ev_sales",
+            "share_2020": "$market_share"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "$project": {
+      "combined": {
+        "$concatArrays": [
+          {
+            "$map": {
+              "input": "$data_2023",
+              "as": "d2023",
+              "in": {
+                "$mergeObjects": [
+                  "$$d2023",
+                  {
+                    "$arrayElemAt": [
+                      {
+                        "$filter": {
+                          "input": "$data_2020",
+                          "cond": {
+                            "$and": [
+                              { "$eq": ["$$this.technology", "$$d2023.technology"] },
+                              { "$eq": ["$$this.state", "$$d2023.state"] }
+                            ]
+                          }
+                        }
+                      },
+                      0
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "$unwind": "$combined"
+  },
+  {
+    "$replaceRoot": {
+      "newRoot": "$combined"
+    }
+  },
+  {
+    "$match": {
+      "$or": [
+        { "sales_2023": { "$gt": 0 } },
+        { "stock_2023": { "$gt": 0 } }
+      ]
+    }
+  },
+  {
+    "$project": {
+      "technology": 1,
+      "state": 1,
+      "sales_2023_units": { "$round": ["$sales_2023", 0] },
+      "stock_2023_units": { "$round": ["$stock_2023", 0] },
+      "share_2023_percent": { "$round": ["$share_2023", 2] },
+      "sales_growth_2020_2023_percent": {
+        "$cond": [
+          { "$and": [{ "$ne": ["$sales_2020", null] }, { "$gt": ["$sales_2020", 0] }] },
+          {
+            "$round": [
+              {
+                "$multiply": [
+                  {
+                    "$divide": [
+                      { "$subtract": ["$sales_2023", "$sales_2020"] },
+                      "$sales_2020"
+                    ]
+                  },
+                  100
+                ]
+              },
+              1
+            ]
+          },
+          999
+        ]
+      },
+      "share_growth_2020_2023_points": {
+        "$cond": [
+          { "$and": [{ "$ne": ["$share_2020", null] }, { "$gt": ["$share_2020", 0] }] },
+          { "$round": [{ "$subtract": ["$share_2023", "$share_2020"] }, 2] },
+          "$share_2023"
+        ]
+      },
+      "technology_type": {
+        "$switch": {
+          "branches": [
+            { "case": { "$eq": ["$technology", "BEV"] }, "then": "Battery Electric - Pure EV" },
+            { "case": { "$eq": ["$technology", "PHEV"] }, "then": "Plug-in Hybrid - Transitional" },
+            { "case": { "$eq": ["$technology", "FCEV"] }, "then": "Fuel Cell - Emerging" }
+          ],
+          "default": "Other Technology"
+        }
+      },
+      "competitive_position": {
+        "$switch": {
+          "branches": [
+            { "case": { "$gt": ["$share_2023", 15] }, "then": "Dominant Technology" },
+            { "case": { "$gt": ["$share_2023", 5] }, "then": "Strong Presence" },
+            { "case": { "$gt": ["$share_2023", 1] }, "then": "Growing Market" }
+          ],
+          "default": "Niche Technology"
+        }
+      },
+      "strategic_insight": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$and": [
+                  { "$eq": ["$state", "Italy"] },
+                  { "$eq": ["$technology", "BEV"] }
+                ]
+              },
+              "then": "Italy BEV adoption vs global leaders"
+            },
+            {
+              "case": {
+                "$and": [
+                  { "$eq": ["$state", "Europe"] },
+                  { "$eq": ["$technology", "BEV"] }
+                ]
+              },
+              "then": "European BEV leadership position"
+            },
+            {
+              "case": {
+                "$and": [
+                  { "$eq": ["$state", "China"] },
+                  { "$eq": ["$technology", "BEV"] }
+                ]
+              },
+              "then": "Chinese BEV dominance reference"
+            },
+            {
+              "case": {
+                "$and": [
+                  { "$eq": ["$state", "USA"] },
+                  { "$eq": ["$technology", "BEV"] },
+                  { "$gt": ["$share_2023", 10] }
+                ]
+              },
+              "then": "USA BEV catching up to Europe/China"
+            },
+            {
+              "case": {
+                "$and": [
+                  { "$eq": ["$technology", "PHEV"] },
+                  { "$gt": ["$share_2023", 3] }
+                ]
+              },
+              "then": "PHEV still competitive vs BEV"
+            },
+            {
+              "case": { "$eq": ["$technology", "FCEV"] },
+              "then": "Hydrogen fuel cell niche opportunity"
+            }
+          ],
+          "default": "Technology adoption tracking"
+        }
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "state_order": {
+        "$switch": {
+          "branches": [
+            { "case": { "$eq": ["$state", "Italy"] }, "then": 1 },
+            { "case": { "$eq": ["$state", "Europe"] }, "then": 2 },
+            { "case": { "$eq": ["$state", "China"] }, "then": 3 },
+            { "case": { "$eq": ["$state", "USA"] }, "then": 4 },
+            { "case": { "$eq": ["$state", "World"] }, "then": 5 }
+          ],
+          "default": 6
+        }
+      }
+    }
+  },
+  {
+    "$sort": {
+      "state_order": 1,
+      "share_2023_percent": -1
+    }
+  },
+  {
+    "$project": {
+      "state_order": 0
+    }
+  }
+]

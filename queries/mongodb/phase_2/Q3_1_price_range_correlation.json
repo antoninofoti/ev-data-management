@@ -1,0 +1,162 @@
+[
+  {
+    "$match": {
+      "base_msrp": { "$nin": [null, ""] },
+      "electric_range": { "$nin": [null, ""] },
+      "make": { "$nin": [null, ""] },
+      "model": { "$nin": [null, ""] }
+    }
+  },
+  {
+    "$addFields": {
+      "price_numeric": {
+        "$toDouble": {
+          "$cond": [
+            { "$eq": ["$base_msrp", ""] },
+            null,
+            "$base_msrp"
+          ]
+        }
+      },
+      "range_numeric": {
+        "$toDouble": {
+          "$cond": [
+            { "$eq": ["$electric_range", ""] },
+            null,
+            "$electric_range"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "price_numeric": { "$gt": 0 },
+      "range_numeric": { "$gt": 0 }
+    }
+  },
+  {
+    "$addFields": {
+      "price_segment": {
+        "$switch": {
+          "branches": [
+            { "case": { "$lt": ["$price_numeric", 30000] }, "then": "Budget (<$30k)" },
+            { "case": { "$lt": ["$price_numeric", 50000] }, "then": "Mid-Range ($30k-$50k)" },
+            { "case": { "$lt": ["$price_numeric", 80000] }, "then": "Premium ($50k-$80k)" }
+          ],
+          "default": "Luxury ($80k+)"
+        }
+      },
+      "range_segment": {
+        "$switch": {
+          "branches": [
+            { "case": { "$lt": ["$range_numeric", 200] }, "then": "Short (<200mi)" },
+            { "case": { "$lt": ["$range_numeric", 300] }, "then": "Medium (200-300mi)" },
+            { "case": { "$lt": ["$range_numeric", 400] }, "then": "Long (300-400mi)" }
+          ],
+          "default": "Extended (400mi+)"
+        }
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "price_segment": "$price_segment",
+        "range_segment": "$range_segment"
+      },
+      "model_count": { "$sum": 1 },
+      "total_sales": { "$sum": 1 },
+      "avg_price": { "$avg": "$price_numeric" },
+      "avg_range": { "$avg": "$range_numeric" },
+      "min_price": { "$min": "$price_numeric" },
+      "max_price": { "$max": "$price_numeric" }
+    }
+  },
+  {
+    "$addFields": {
+      "price_per_mile": {
+        "$round": [
+          {
+            "$divide": [
+              "$avg_price",
+              { "$cond": [{ "$eq": ["$avg_range", 0] }, 1, "$avg_range"] }
+            ]
+          },
+          2
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": null,
+      "segments": { "$push": "$$ROOT" },
+      "grand_total": { "$sum": "$total_sales" }
+    }
+  },
+  {
+    "$unwind": "$segments"
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "price_segment": "$segments._id.price_segment",
+      "range_segment": "$segments._id.range_segment",
+      "model_count": "$segments.model_count",
+      "total_sales": "$segments.total_sales",
+      "avg_price": { "$round": ["$segments.avg_price", 0] },
+      "avg_range": { "$round": ["$segments.avg_range", 0] },
+      "min_price": { "$toInt": "$segments.min_price" },
+      "max_price": { "$toInt": "$segments.max_price" },
+      "price_per_mile": "$segments.price_per_mile",
+      "market_share_pct": {
+        "$round": [
+          {
+            "$multiply": [
+              { "$divide": ["$segments.total_sales", "$grand_total"] },
+              100
+            ]
+          },
+          1
+        ]
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "price_order": {
+        "$switch": {
+          "branches": [
+            { "case": { "$eq": ["$price_segment", "Budget (<$30k)"] }, "then": 1 },
+            { "case": { "$eq": ["$price_segment", "Mid-Range ($30k-$50k)"] }, "then": 2 },
+            { "case": { "$eq": ["$price_segment", "Premium ($50k-$80k)"] }, "then": 3 }
+          ],
+          "default": 4
+        }
+      },
+      "range_order": {
+        "$switch": {
+          "branches": [
+            { "case": { "$eq": ["$range_segment", "Short (<200mi)"] }, "then": 1 },
+            { "case": { "$eq": ["$range_segment", "Medium (200-300mi)"] }, "then": 2 },
+            { "case": { "$eq": ["$range_segment", "Long (300-400mi)"] }, "then": 3 }
+          ],
+          "default": 4
+        }
+      }
+    }
+  },
+  {
+    "$sort": {
+      "price_order": 1,
+      "range_order": 1
+    }
+  },
+  {
+    "$project": {
+      "price_order": 0,
+      "range_order": 0
+    }
+  }
+]

@@ -1,0 +1,136 @@
+[
+  {
+    "$match": {
+      "model_year": {
+        "$gte": 2020
+      },
+      "make": {
+        "$nin": [
+          null,
+          ""
+        ]
+      },
+      "model": {
+        "$nin": [
+          null,
+          ""
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "make": "$make",
+        "model": "$model"
+      },
+      "total_registrations": {
+        "$sum": 1
+      },
+      "avg_price": {
+        "$avg": {
+          "$cond": [
+            {
+              "$gt": [
+                "$base_msrp",
+                0
+              ]
+            },
+            "$base_msrp",
+            50000
+          ]
+        }
+      },
+      "avg_range": {
+        "$avg": {
+          "$cond": [
+            {
+              "$gt": [
+                "$electric_range",
+                0
+              ]
+            },
+            "$electric_range",
+            250
+          ]
+        }
+      },
+      "market_presence": {
+        "$sum": 1
+      },
+      "markets_present": {
+        "$addToSet": "$state"
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "markets_present_count": {
+        "$size": "$markets_present"
+      }
+    }
+  },
+  {
+    "$match": {
+      "total_registrations": {
+        "$gte": 100
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "performance_score": {
+        "$multiply": [
+          "$total_registrations",
+          "$markets_present_count",
+          {
+            "$divide": [
+              "$avg_range",
+              {
+                "$max": [
+                  {
+                    "$max": [
+                      "$avg_price",
+                      30000,
+                      1
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          100
+        ]
+      }
+    }
+  },
+  {
+    "$sort": {
+      "performance_score": -1
+    }
+  },
+  {
+    "$limit": 10
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "make": "$_id.make",
+      "model": "$_id.model",
+      "total_registrations": 1,
+      "avg_price": {
+        "$toInt": "$avg_price"
+      },
+      "avg_range": {
+        "$toInt": "$avg_range"
+      },
+      "markets_present": "$markets_present_count",
+      "performance_score": {
+        "$round": [
+          "$performance_score",
+          2
+        ]
+      }
+    }
+  }
+]

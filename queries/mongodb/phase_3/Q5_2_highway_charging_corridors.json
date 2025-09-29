@@ -1,0 +1,70 @@
+[
+  {
+    "$match": {
+      "country_code": { "$nin": [null, ""] },
+      "city": { "$nin": [null, ""] },
+      "power_kw": { "$type": "number", "$gte": 50 }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "country_code": "$country_code",
+        "city": "$city"
+      },
+      "stations_in_area": { "$sum": 1 },
+      "fast_stations": {
+        "$sum": {
+          "$cond": [{ "$gte": ["$power_kw", 150] }, 1, 0]
+        }
+      },
+      "avg_power": { "$avg": "$power_kw" },
+      "total_ports": { "$sum": "$ports" },
+      "operators": { "$addToSet": "$city" }
+    }
+  },
+  {
+    "$match": {
+      "stations_in_area": { "$gte": 3 }
+    }
+  },
+  {
+    "$addFields": {
+      "fast_charging_percentage": {
+        "$round": [
+          { "$multiply": [{ "$divide": ["$fast_stations", "$stations_in_area"] }, 100] },
+          1
+        ]
+      },
+      "avg_ports_per_station": {
+        "$round": [
+          { "$divide": ["$total_ports", "$stations_in_area"] },
+          1
+        ]
+      },
+      "corridor_score": { "$multiply": ["$stations_in_area", "$fast_stations"] }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "country_code": "$_id.country_code",
+      "corridor_area": "$_id.city",
+      "stations_in_area": 1,
+      "fast_stations": 1,
+      "fast_charging_percentage": 1,
+      "total_ports": 1,
+      "avg_ports_per_station": 1,
+      "operators": { "$size": "$operators" },
+      "corridor_score": 1
+    }
+  },
+  {
+    "$sort": {
+      "corridor_score": -1
+    }
+  },
+  {
+    "$limit": 20
+  }
+]

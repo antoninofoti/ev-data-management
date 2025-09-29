@@ -1,0 +1,280 @@
+[
+  {
+    "$facet": {
+      "primary": [
+        { "$match": { "make": { "$nin": [null, ""] }, "base_msrp": { "$nin": [null, ""] }, "electric_range": { "$nin": [null, ""] } } },
+        { "$addFields": { "price_numeric": { "$toDouble": { "$cond": [{ "$eq": ["$base_msrp", ""] }, null, "$base_msrp"] } }, "range_numeric": { "$toDouble": { "$cond": [{ "$eq": ["$electric_range", ""] }, null, "$electric_range"] } } } },
+        { "$match": { "price_numeric": { "$gt": 0 }, "range_numeric": { "$gt": 0 } } },
+        { "$group": { "_id": "$make", "model_count": { "$sum": 1 }, "avg_price": { "$avg": "$price_numeric" }, "avg_range": { "$avg": "$range_numeric" } } },
+        { "$match": { "model_count": { "$gte": 3 } } }
+      ],
+      "fallback": [
+        { "$match": { "make": { "$nin": [null, ""] } } },
+        { "$group": { "_id": "$make", "model_count": { "$sum": 1 } } },
+        { "$match": { "model_count": { "$gte": 10 } } },
+        { "$addFields": { "avg_price": null, "avg_range": null } }
+      ]
+    }
+  },
+  { "$project": { "combined": { "$setUnion": ["$primary", "$fallback"] } } },
+  { "$unwind": "$combined" },
+  { "$replaceRoot": { "newRoot": "$combined" } },
+  {
+    "$addFields": {
+      "brand_origin": {
+        "$switch": {
+          "branches": [
+            {
+              "case": { "$in": [{ "$toUpper": "$_id" }, ["FIAT", "ALFA ROMEO", "MASERATI", "LANCIA", "ABARTH"]] },
+              "then": "Italian (Stellantis)"
+            },
+            {
+              "case": { "$in": [{ "$toUpper": "$_id" }, ["VOLKSWAGEN", "BMW", "MERCEDES-BENZ", "AUDI", "PORSCHE", "SMART", "OPEL"]] },
+              "then": "German Premium"
+            },
+            {
+              "case": { "$in": [{ "$toUpper": "$_id" }, ["RENAULT", "PEUGEOT", "CITROËN", "CITROEN", "DS", "ALPINE"]] },
+              "then": "French"
+            },
+            {
+              "case": { "$in": [{ "$toUpper": "$_id" }, ["TESLA", "FORD", "CHEVROLET", "RIVIAN", "LUCID", "FISKER"]] },
+              "then": "American"
+            },
+            {
+              "case": { "$in": [{ "$toUpper": "$_id" }, ["NISSAN", "TOYOTA", "HONDA", "KIA", "HYUNDAI", "MAZDA"]] },
+              "then": "Asian"
+            },
+            {
+              "case": { "$in": [{ "$toUpper": "$_id" }, ["VOLVO", "POLESTAR", "JAGUAR", "MINI"]] },
+              "then": "Nordic/British"
+            },
+            {
+              "case": { "$in": [{ "$toUpper": "$_id" }, ["BYD", "NIO", "MG", "XPENG"]] },
+              "then": "Chinese"
+            }
+          ],
+          "default": "Other"
+        }
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "price_category": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$lt": [
+                  "$avg_price",
+                  25000
+                ]
+              },
+              "then": "Budget (<\u20ac25k)"
+            },
+            {
+              "case": {
+                "$lt": [
+                  "$avg_price",
+                  40000
+                ]
+              },
+              "then": "Mass Market (\u20ac25k-\u20ac40k)"
+            },
+            {
+              "case": {
+                "$lt": [
+                  "$avg_price",
+                  60000
+                ]
+              },
+              "then": "Premium (\u20ac40k-\u20ac60k)"
+            }
+          ],
+          "default": "Luxury (\u20ac60k+)"
+        }
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "brand_origin": "$brand_origin",
+        "price_category": "$price_category"
+      },
+      "segment_models": { "$sum": "$model_count" },
+      "segment_sales": { "$sum": "$model_count" },
+      "segment_avg_price": { "$avg": "$avg_price" },
+      "segment_avg_range": { "$avg": "$avg_range" },
+      "unique_brands": { "$sum": 1 }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$_id.brand_origin",
+      "total_models": {
+        "$sum": "$segment_models"
+      },
+      "total_brand_sales": {
+        "$sum": "$segment_sales"
+      },
+      "brand_count": {
+        "$sum": "$unique_brands"
+      },
+      "price_segments": {
+        "$push": {
+          "price_category": "$_id.price_category",
+          "segment_models": "$segment_models",
+          "segment_sales": "$segment_sales",
+          "segment_avg_price": "$segment_avg_price",
+          "segment_avg_range": "$segment_avg_range"
+        }
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": null,
+      "total_market_sales": {
+        "$sum": "$total_brand_sales"
+      },
+      "origins": {
+        "$push": {
+          "brand_origin": "$_id",
+          "total_models": "$total_models",
+          "total_brand_sales": "$total_brand_sales",
+          "brand_count": "$brand_count",
+          "price_segments": "$price_segments"
+        }
+      }
+    }
+  },
+  {
+    "$unwind": "$origins"
+  },
+  {
+    "$unwind": "$origins.price_segments"
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "brand_origin": "$origins.brand_origin",
+      "total_models": "$origins.total_models",
+      "total_brand_sales": "$origins.total_brand_sales",
+      "market_share_percent": {
+        "$round": [
+          {
+            "$multiply": [
+              {
+                "$divide": [
+                  "$origins.total_brand_sales",
+                  "$total_market_sales"
+                ]
+              },
+              100
+            ]
+          },
+          2
+        ]
+      },
+      "unique_brands": "$origins.brand_count",
+      "avg_models_per_brand": {
+        "$round": [
+          {
+            "$divide": [
+              "$origins.total_models",
+              {
+                "$max": [
+                  "$origins.brand_count",
+                  1
+                ]
+              }
+            ]
+          },
+          1
+        ]
+      },
+      "italian_competitiveness": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$origins.brand_origin",
+                  "Italian (Stellantis)"
+                ]
+              },
+              "then": "Home Market"
+            },
+            {
+              "case": {
+                "$gt": [
+                  {
+                    "$multiply": [
+                      {
+                        "$divide": [
+                          "$origins.total_brand_sales",
+                          "$total_market_sales"
+                        ]
+                      },
+                      100
+                    ]
+                  },
+                  20
+                ]
+              },
+              "then": "Strong Competitor"
+            },
+            {
+              "case": {
+                "$gt": [
+                  {
+                    "$multiply": [
+                      {
+                        "$divide": [
+                          "$origins.total_brand_sales",
+                          "$total_market_sales"
+                        ]
+                      },
+                      100
+                    ]
+                  },
+                  10
+                ]
+              },
+              "then": "Moderate Competitor"
+            }
+          ],
+          "default": "Niche Player"
+        }
+      },
+      "price_category": "$origins.price_segments.price_category",
+      "segment_models": "$origins.price_segments.segment_models",
+      "segment_sales": "$origins.price_segments.segment_sales",
+      "segment_avg_price": {
+        "$round": [
+          "$origins.price_segments.segment_avg_price",
+          0
+        ]
+      },
+      "segment_avg_range": {
+        "$round": [
+          "$origins.price_segments.segment_avg_range",
+          0
+        ]
+      },
+      "sort_sales": "$origins.total_brand_sales"
+    }
+  },
+  {
+    "$sort": {
+      "sort_sales": -1,
+      "price_category": 1
+    }
+  },
+  {
+    "$project": {
+      "sort_sales": 0
+    }
+  }
+]

@@ -1,0 +1,720 @@
+[
+  {
+    "$addFields": {
+      "year_int": {
+        "$toInt": {
+          "$cond": [
+            {
+              "$eq": [
+                "$year",
+                ""
+              ]
+            },
+            null,
+            "$year"
+          ]
+        }
+      },
+      "value_num": {
+        "$toDouble": {
+          "$cond": [
+            {
+              "$eq": [
+                "$value",
+                ""
+              ]
+            },
+            null,
+            "$value"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "region": {
+        "$in": [
+          "China",
+          "USA",
+          "Europe",
+          "Italy",
+          "World"
+        ]
+      },
+      "parameter": {
+        "$in": [
+          "EV sales",
+          "EV stock",
+          "EV sales share"
+        ]
+      },
+      "mode": "Cars",
+      "year_int": {
+        "$gte": 2020
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "state": "$region",
+        "year": "$year_int",
+        "parameter": "$parameter"
+      },
+      "total_value": {
+        "$sum": "$value_num"
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$_id.state",
+      "metrics": {
+        "$push": "$$ROOT"
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "state": "$_id",
+      "ev_sales_2024": {
+        "$ifNull": [
+          {
+            "$arrayElemAt": [
+              {
+                "$map": {
+                  "input": {
+                    "$filter": {
+                      "input": "$metrics",
+                      "cond": {
+                        "$and": [
+                          {
+                            "$eq": [
+                              "$$this._id.parameter",
+                              "EV sales"
+                            ]
+                          },
+                          {
+                            "$eq": [
+                              "$$this._id.year",
+                              2024
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "in": "$$this.total_value"
+                }
+              },
+              0
+            ]
+          },
+          0
+        ]
+      },
+      "ev_stock_2024": {
+        "$ifNull": [
+          {
+            "$arrayElemAt": [
+              {
+                "$map": {
+                  "input": {
+                    "$filter": {
+                      "input": "$metrics",
+                      "cond": {
+                        "$and": [
+                          {
+                            "$eq": [
+                              "$$this._id.parameter",
+                              "EV stock"
+                            ]
+                          },
+                          {
+                            "$eq": [
+                              "$$this._id.year",
+                              2024
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "in": "$$this.total_value"
+                }
+              },
+              0
+            ]
+          },
+          0
+        ]
+      },
+      "sales_share_2024": {
+        "$ifNull": [
+          {
+            "$arrayElemAt": [
+              {
+                "$map": {
+                  "input": {
+                    "$filter": {
+                      "input": "$metrics",
+                      "cond": {
+                        "$and": [
+                          {
+                            "$eq": [
+                              "$$this._id.parameter",
+                              "EV sales share"
+                            ]
+                          },
+                          {
+                            "$eq": [
+                              "$$this._id.year",
+                              2024
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "in": "$$this.total_value"
+                }
+              },
+              0
+            ]
+          },
+          0
+        ]
+      },
+      "ev_sales_2020": {
+        "$ifNull": [
+          {
+            "$arrayElemAt": [
+              {
+                "$map": {
+                  "input": {
+                    "$filter": {
+                      "input": "$metrics",
+                      "cond": {
+                        "$and": [
+                          {
+                            "$eq": [
+                              "$$this._id.parameter",
+                              "EV sales"
+                            ]
+                          },
+                          {
+                            "$eq": [
+                              "$$this._id.year",
+                              2020
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "in": "$$this.total_value"
+                }
+              },
+              0
+            ]
+          },
+          0
+        ]
+      },
+      "ev_stock_2020": {
+        "$ifNull": [
+          {
+            "$arrayElemAt": [
+              {
+                "$map": {
+                  "input": {
+                    "$filter": {
+                      "input": "$metrics",
+                      "cond": {
+                        "$and": [
+                          {
+                            "$eq": [
+                              "$$this._id.parameter",
+                              "EV stock"
+                            ]
+                          },
+                          {
+                            "$eq": [
+                              "$$this._id.year",
+                              2020
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "in": "$$this.total_value"
+                }
+              },
+              0
+            ]
+          },
+          0
+        ]
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "sales_growth_2020_2024": {
+        "$cond": [
+          {
+            "$and": [
+              {
+                "$gt": [
+                  "$ev_sales_2020",
+                  0
+                ]
+              },
+              {
+                "$gt": [
+                  "$ev_sales_2024",
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "$multiply": [
+              {
+                "$divide": [
+                  {
+                    "$subtract": [
+                      "$ev_sales_2024",
+                      "$ev_sales_2020"
+                    ]
+                  },
+                  "$ev_sales_2020"
+                ]
+              },
+              100
+            ]
+          },
+          0
+        ]
+      },
+      "stock_growth_2020_2024": {
+        "$cond": [
+          {
+            "$and": [
+              {
+                "$gt": [
+                  "$ev_stock_2020",
+                  0
+                ]
+              },
+              {
+                "$gt": [
+                  "$ev_stock_2024",
+                  0
+                ]
+              }
+            ]
+          },
+          {
+            "$multiply": [
+              {
+                "$divide": [
+                  {
+                    "$subtract": [
+                      "$ev_stock_2024",
+                      "$ev_stock_2020"
+                    ]
+                  },
+                  "$ev_stock_2020"
+                ]
+              },
+              100
+            ]
+          },
+          0
+        ]
+      },
+      "population_millions": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "China"
+                ]
+              },
+              "then": 1400.0
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "USA"
+                ]
+              },
+              "then": 330.0
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "Europe"
+                ]
+              },
+              "then": 750.0
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "Italy"
+                ]
+              },
+              "then": 59.1
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "World"
+                ]
+              },
+              "then": 8000.0
+            }
+          ],
+          "default": 100.0
+        }
+      }
+    }
+  },
+  {
+    "$facet": {
+      "markets": [
+        {
+          "$match": {}
+        }
+      ],
+      "totals": [
+        {
+          "$match": {
+            "state": {
+              "$ne": "World"
+            }
+          }
+        },
+        {
+          "$group": {
+            "_id": null,
+            "total_global_sales": {
+              "$sum": "$ev_sales_2024"
+            },
+            "total_global_stock": {
+              "$sum": "$ev_stock_2024"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "$unwind": "$totals"
+  },
+  {
+    "$unwind": "$markets"
+  },
+  {
+    "$replaceRoot": {
+      "newRoot": {
+        "$mergeObjects": [
+          "$markets",
+          {
+            "global_totals": "$totals"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "$project": {
+      "state": 1,
+      "ev_sales_2024": {
+        "$round": [
+          "$ev_sales_2024",
+          0
+        ]
+      },
+      "ev_stock_2024": {
+        "$round": [
+          "$ev_stock_2024",
+          0
+        ]
+      },
+      "sales_share_2024_percent": {
+        "$round": [
+          "$sales_share_2024",
+          2
+        ]
+      },
+      "ev_per_1000_people": {
+        "$round": [
+          {
+            "$divide": [
+              "$ev_stock_2024",
+              "$population_millions"
+            ]
+          },
+          0
+        ]
+      },
+      "annual_sales_per_1000_people": {
+        "$round": [
+          {
+            "$divide": [
+              "$ev_sales_2024",
+              "$population_millions"
+            ]
+          },
+          0
+        ]
+      },
+      "global_market_share_percent": {
+        "$round": [
+          {
+            "$cond": [
+              {
+                "$gt": [
+                  "$global_totals.total_global_sales",
+                  0
+                ]
+              },
+              {
+                "$multiply": [
+                  {
+                    "$divide": [
+                      "$ev_sales_2024",
+                      "$global_totals.total_global_sales"
+                    ]
+                  },
+                  100
+                ]
+              },
+              0
+            ]
+          },
+          2
+        ]
+      },
+      "global_stock_share_percent": {
+        "$round": [
+          {
+            "$cond": [
+              {
+                "$gt": [
+                  "$global_totals.total_global_stock",
+                  0
+                ]
+              },
+              {
+                "$multiply": [
+                  {
+                    "$divide": [
+                      "$ev_stock_2024",
+                      "$global_totals.total_global_stock"
+                    ]
+                  },
+                  100
+                ]
+              },
+              0
+            ]
+          },
+          2
+        ]
+      },
+      "sales_growth_2020_2024_percent": {
+        "$round": [
+          "$sales_growth_2020_2024",
+          1
+        ]
+      },
+      "stock_growth_2020_2024_percent": {
+        "$round": [
+          "$stock_growth_2020_2024",
+          1
+        ]
+      },
+      "market_classification": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "China"
+                ]
+              },
+              "then": "Global Leader"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "USA"
+                ]
+              },
+              "then": "Major Market"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "Europe"
+                ]
+              },
+              "then": "Major Regional Market"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "Italy"
+                ]
+              },
+              "then": "Developing Market"
+            },
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "World"
+                ]
+              },
+              "then": "Global Total"
+            }
+          ],
+          "default": "Other"
+        }
+      },
+      "italy_comparison": "$state",
+      "adoption_stage": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$gt": [
+                  "$sales_share_2024",
+                  25
+                ]
+              },
+              "then": "EV Leader (>25% share)"
+            },
+            {
+              "case": {
+                "$gt": [
+                  "$sales_share_2024",
+                  15
+                ]
+              },
+              "then": "EV Advanced (>15% share)"
+            },
+            {
+              "case": {
+                "$gt": [
+                  "$sales_share_2024",
+                  5
+                ]
+              },
+              "then": "EV Developing (>5% share)"
+            }
+          ],
+          "default": "EV Emerging (<5% share)"
+        }
+      }
+    }
+  },
+  {
+    "$facet": {
+      "all_markets": [
+        {
+          "$match": {}
+        }
+      ],
+      "italy_data": [
+        {
+          "$match": {
+            "state": "Italy"
+          }
+        },
+        {
+          "$project": {
+            "italy_per_capita": "$ev_per_1000_people"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "$unwind": {
+      "path": "$italy_data",
+      "preserveNullAndEmptyArrays": true
+    }
+  },
+  {
+    "$unwind": "$all_markets"
+  },
+  {
+    "$replaceRoot": {
+      "newRoot": {
+        "$mergeObjects": [
+          "$all_markets",
+          {
+            "italy_per_capita": "$italy_data.italy_per_capita"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "italy_comparison": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$eq": [
+                  "$state",
+                  "Italy"
+                ]
+              },
+              "then": "Base Country"
+            },
+            {
+              "case": {
+                "$gt": [
+                  "$ev_per_1000_people",
+                  "$italy_per_capita"
+                ]
+              },
+              "then": "Higher Per-Capita than Italy"
+            }
+          ],
+          "default": "Lower Per-Capita than Italy"
+        }
+      }
+    }
+  },
+  {
+    "$project": {
+      "italy_per_capita": 0
+    }
+  },
+  {
+    "$sort": {
+      "ev_sales_2024": -1
+    }
+  }
+]

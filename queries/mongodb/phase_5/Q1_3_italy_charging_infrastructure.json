@@ -1,0 +1,212 @@
+[
+  {
+    "$match": {
+      "$or": [
+        {
+          "country_code": "IT"
+        },
+        {
+          "country_code": "ITALY"
+        }
+      ]
+    }
+  },
+  {
+    "$addFields": {
+      "power_numeric": {
+        "$toDouble": {
+          "$cond": [
+            {
+              "$or": [
+                {
+                  "$eq": [
+                    "$power_kw",
+                    ""
+                  ]
+                },
+                {
+                  "$eq": [
+                    "$power_kw",
+                    null
+                  ]
+                }
+              ]
+            },
+            null,
+            "$power_kw"
+          ]
+        }
+      },
+      "city_upper": {
+        "$toUpper": "$city"
+      }
+    }
+  },
+  {
+    "$match": {
+      "power_numeric": {
+        "$ne": null
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "region_type": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$regexMatch": {
+                  "input": "$city_upper",
+                  "regex": "(MILANO|TORINO|GENOVA|BOLOGNA|VENEZIA|TRENTO|TRIESTE)"
+                }
+              },
+              "then": "Northern Italy"
+            },
+            {
+              "case": {
+                "$regexMatch": {
+                  "input": "$city_upper",
+                  "regex": "(ROMA|FIRENZE|PERUGIA|ANCONA|AQUILA)"
+                }
+              },
+              "then": "Central Italy"
+            },
+            {
+              "case": {
+                "$regexMatch": {
+                  "input": "$city_upper",
+                  "regex": "(NAPOLI|BARI|PALERMO|CATANZARO|POTENZA|CAMPOBASSO)"
+                }
+              },
+              "then": "Southern Italy"
+            }
+          ],
+          "default": "Other/Unknown"
+        }
+      },
+      "connector_power": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$gte": [
+                  "$power_numeric",
+                  150
+                ]
+              },
+              "then": "Ultra-Fast (\u2265150kW)"
+            },
+            {
+              "case": {
+                "$gte": [
+                  "$power_numeric",
+                  50
+                ]
+              },
+              "then": "Fast (50-149kW)"
+            },
+            {
+              "case": {
+                "$gte": [
+                  "$power_numeric",
+                  22
+                ]
+              },
+              "then": "Medium (22-49kW)"
+            }
+          ],
+          "default": "Slow (<22kW)"
+        }
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "region_type": "$region_type",
+        "connector_power": "$connector_power"
+      },
+      "station_count": {
+        "$sum": 1
+      },
+      "total_power": {
+        "$sum": "$power_numeric"
+      },
+      "avg_power": {
+        "$avg": "$power_numeric"
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$_id.region_type",
+      "power_categories": {
+        "$push": {
+          "connector_power": "$_id.connector_power",
+          "station_count": "$station_count",
+          "total_power": "$total_power",
+          "avg_power": "$avg_power"
+        }
+      },
+      "total_stations": {
+        "$sum": "$station_count"
+      },
+      "region_total_power": {
+        "$sum": "$total_power"
+      }
+    }
+  },
+  {
+    "$unwind": "$power_categories"
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "country_code": "$_id",
+      "total_stations": 1,
+      "region_total_power": {
+        "$round": [
+          "$region_total_power",
+          0
+        ]
+      },
+      "connector_power": "$power_categories.connector_power",
+      "station_count": "$power_categories.station_count",
+      "total_power": {
+        "$round": [
+          "$power_categories.total_power",
+          0
+        ]
+      },
+      "avg_power": {
+        "$round": [
+          "$power_categories.avg_power",
+          2
+        ]
+      },
+      "share_of_region": {
+        "$round": [
+          {
+            "$multiply": [
+              {
+                "$divide": [
+                  "$power_categories.station_count",
+                  "$total_stations"
+                ]
+              },
+              100
+            ]
+          },
+          1
+        ]
+      }
+    }
+  },
+  {
+    "$sort": {
+      "country_code": 1,
+      "connector_power": 1
+    }
+  }
+]

@@ -1,0 +1,223 @@
+[
+  {
+    "$match": {
+      "country_code": {
+        "$ne": null
+      },
+      "power_kw": {
+        "$gt": 0
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$country_code",
+      "total_stations": {
+        "$sum": 1
+      },
+      "ultra_fast_stations": {
+        "$sum": {
+          "$cond": [
+            {
+              "$gte": [
+                "$power_kw",
+                150
+              ]
+            },
+            1,
+            0
+          ]
+        }
+      },
+      "fast_stations": {
+        "$sum": {
+          "$cond": [
+            {
+              "$gte": [
+                "$power_kw",
+                50
+              ]
+            },
+            1,
+            0
+          ]
+        }
+      },
+      "standard_stations": {
+        "$sum": {
+          "$cond": [
+            {
+              "$lt": [
+                "$power_kw",
+                50
+              ]
+            },
+            1,
+            0
+          ]
+        }
+      },
+      "avg_power": {
+        "$avg": "$power_kw"
+      },
+      "max_power": {
+        "$max": "$power_kw"
+      }
+    }
+  },
+  {
+    "$match": {
+      "total_stations": {
+        "$gte": 50
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "ultra_fast_adoption_pct": {
+        "$multiply": [
+          {
+            "$divide": [
+              "$ultra_fast_stations",
+              {
+                "$max": [
+                  "$total_stations",
+                  1
+                ]
+              }
+            ]
+          },
+          100
+        ]
+      },
+      "fast_adoption_pct": {
+        "$multiply": [
+          {
+            "$divide": [
+              "$fast_stations",
+              {
+                "$max": [
+                  "$total_stations",
+                  1
+                ]
+              }
+            ]
+          },
+          100
+        ]
+      },
+      "technology_tier": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$gte": [
+                  {
+                    "$multiply": [
+                      {
+                        "$divide": [
+                          "$ultra_fast_stations",
+                          {
+                            "$max": [
+                              "$total_stations",
+                              1
+                            ]
+                          }
+                        ]
+                      },
+                      100
+                    ]
+                  },
+                  30
+                ]
+              },
+              "then": "Technology Leader"
+            },
+            {
+              "case": {
+                "$gte": [
+                  {
+                    "$multiply": [
+                      {
+                        "$divide": [
+                          "$ultra_fast_stations",
+                          {
+                            "$max": [
+                              "$total_stations",
+                              1
+                            ]
+                          }
+                        ]
+                      },
+                      100
+                    ]
+                  },
+                  15
+                ]
+              },
+              "then": "Early Adopter"
+            },
+            {
+              "case": {
+                "$gte": [
+                  {
+                    "$multiply": [
+                      {
+                        "$divide": [
+                          "$fast_stations",
+                          {
+                            "$max": [
+                              "$total_stations",
+                              1
+                            ]
+                          }
+                        ]
+                      },
+                      100
+                    ]
+                  },
+                  60
+                ]
+              },
+              "then": "Fast Follower"
+            }
+          ],
+          "default": "Technology Laggard"
+        }
+      }
+    }
+  },
+  {
+    "$sort": {
+      "ultra_fast_adoption_pct": -1
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "country_code": "$_id",
+      "total_stations": 1,
+      "ultra_fast_stations": 1,
+      "ultra_fast_adoption_pct": {
+        "$round": [
+          "$ultra_fast_adoption_pct",
+          1
+        ]
+      },
+      "fast_adoption_pct": {
+        "$round": [
+          "$fast_adoption_pct",
+          1
+        ]
+      },
+      "technology_tier": 1,
+      "avg_power_kw": {
+        "$round": [
+          "$avg_power",
+          1
+        ]
+      },
+      "max_power_kw": "$max_power"
+    }
+  }
+]

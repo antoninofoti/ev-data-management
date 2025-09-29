@@ -1,0 +1,79 @@
+[
+  {
+    "$match": {
+      "country_code": { "$nin": [null, ""] },
+      "power_kw": { "$type": "number", "$gt": 0 }
+    }
+  },
+  {
+    "$addFields": {
+      "current_season": {
+        "$switch": {
+          "branches": [
+            { "case": { "$in": [{ "$month": "$$NOW" }, [12, 1, 2]] }, "then": "Winter" },
+            { "case": { "$in": [{ "$month": "$$NOW" }, [3, 4, 5]] }, "then": "Spring" },
+            { "case": { "$in": [{ "$month": "$$NOW" }, [6, 7, 8]] }, "then": "Summer" }
+          ],
+          "default": "Fall"
+        }
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": "$country_code",
+      "total_stations": { "$sum": 1 },
+      "avg_power": { "$avg": "$power_kw" },
+      "high_power_stations": {
+        "$sum": {
+          "$cond": [{ "$gte": ["$power_kw", 150] }, 1, 0]
+        }
+      },
+      "operators": { "$addToSet": "$city" },
+      "current_season": { "$first": "$current_season" }
+    }
+  },
+  {
+    "$match": {
+      "total_stations": { "$gte": 20 }
+    }
+  },
+  {
+    "$addFields": {
+      "high_power_percentage": {
+        "$round": [
+          { "$multiply": [{ "$divide": ["$high_power_stations", "$total_stations"] }, 100] },
+          1
+        ]
+      },
+      "expected_seasonal_demand": {
+        "$switch": {
+          "branches": [
+            { "case": { "$gte": ["$total_stations", 1000] }, "then": "High Usage Expected" },
+            { "case": { "$gte": ["$total_stations", 100] }, "then": "Moderate Usage Expected" }
+          ],
+          "default": "Low Usage Expected"
+        }
+      },
+      "operators_count": { "$size": "$operators" }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "country_code": "$_id",
+      "current_season": 1,
+      "total_stations": 1,
+      "avg_power_kw": { "$round": ["$avg_power", 1] },
+      "high_power_stations": 1,
+      "high_power_percentage": 1,
+      "operators": "$operators_count",
+      "expected_seasonal_demand": 1
+    }
+  },
+  {
+    "$sort": {
+      "total_stations": -1
+    }
+  }
+]

@@ -1,0 +1,180 @@
+[
+  {
+    "$match": {
+      "latitude": {
+        "$ne": null,
+        "$gte": -90,
+        "$lte": 90
+      },
+      "longitude": {
+        "$ne": null,
+        "$gte": -180,
+        "$lte": 180
+      },
+      "power_kw": {
+        "$gt": 0
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "lat_grid": {
+        "$round": [
+          "$latitude",
+          1
+        ]
+      },
+      "lon_grid": {
+        "$round": [
+          "$longitude",
+          1
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "country": "$country_code",
+        "lat": "$lat_grid",
+        "lon": "$lon_grid"
+      },
+      "station_count": {
+        "$sum": 1
+      },
+      "avg_power": {
+        "$avg": "$power_kw"
+      },
+      "total_ports": {
+        "$sum": "$ports"
+      },
+      "operators": {
+        "$addToSet": "$operator_name"
+      }
+    }
+  },
+  {
+    "$addFields": {
+      "coverage_level": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$gte": [
+                  "$station_count",
+                  10
+                ]
+              },
+              "then": "Saturated"
+            },
+            {
+              "case": {
+                "$gte": [
+                  "$station_count",
+                  5
+                ]
+              },
+              "then": "Well Covered"
+            },
+            {
+              "case": {
+                "$gte": [
+                  "$station_count",
+                  2
+                ]
+              },
+              "then": "Moderate Coverage"
+            }
+          ],
+          "default": "Gap Area"
+        }
+      },
+      "placement_priority": {
+        "$switch": {
+          "branches": [
+            {
+              "case": {
+                "$and": [
+                  {
+                    "$lt": [
+                      "$station_count",
+                      3
+                    ]
+                  },
+                  {
+                    "$lt": [
+                      "$avg_power",
+                      100
+                    ]
+                  }
+                ]
+              },
+              "then": "High Priority"
+            },
+            {
+              "case": {
+                "$and": [
+                  {
+                    "$lt": [
+                      "$station_count",
+                      5
+                    ]
+                  },
+                  {
+                    "$lt": [
+                      "$avg_power",
+                      150
+                    ]
+                  }
+                ]
+              },
+              "then": "Medium Priority"
+            }
+          ],
+          "default": "Low Priority"
+        }
+      },
+      "operator_count": {
+        "$size": "$operators"
+      }
+    }
+  },
+  {
+    "$match": {
+      "placement_priority": {
+        "$in": [
+          "High Priority",
+          "Medium Priority"
+        ]
+      }
+    }
+  },
+  {
+    "$sort": {
+      "placement_priority": 1,
+      "station_count": 1
+    }
+  },
+  {
+    "$limit": 25
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "country_code": "$_id.country",
+      "latitude": "$_id.lat",
+      "longitude": "$_id.lon",
+      "existing_stations": "$station_count",
+      "total_ports": 1,
+      "avg_power_kw": {
+        "$round": [
+          "$avg_power",
+          1
+        ]
+      },
+      "operator_count": 1,
+      "coverage_level": 1,
+      "placement_priority": 1
+    }
+  }
+]

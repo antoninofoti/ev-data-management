@@ -1,0 +1,52 @@
+[
+  {
+    "$match": {
+      "region": {
+        "$in": [
+          "USA",
+          "China"
+        ]
+      },
+      "parameter": "EV charging points",
+      "powertrain": {
+        "$regex": "^Publicly available"
+      },
+      "year": 2023
+    }
+  },
+  {
+    "$group": {
+      "_id": "$region",
+      "charging_points": {
+        "$sum": "$value"
+      }
+    }
+  },
+  {
+    "$project": {
+      "region": "$_id",
+      "charging_points_thousands": {
+        "$round": [
+          {
+            "$divide": [
+              "$charging_points",
+              {
+                "$max": [
+                  1000,
+                  1
+                ]
+              }
+            ]
+          },
+          0
+        ]
+      },
+      "unit": "K points"
+    }
+  },
+  {
+    "$sort": {
+      "charging_points_thousands": -1
+    }
+  }
+]
